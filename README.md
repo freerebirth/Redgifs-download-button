@@ -1,4 +1,4 @@
-# 🚀 Redgifs Downloader Button  
+# 🚀 Redgifs Button Downloader 
 
 ### The button Redgifs forgot to add.  
 
