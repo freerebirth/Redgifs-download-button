@@ -1,1 +1,14 @@
- 
+# Build files
+*.zip
+*.xpi
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+
+# Node modules (if used in the future)
+node_modules/ 
