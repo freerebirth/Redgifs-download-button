@@ -52,7 +52,7 @@ Mozilla didn’t want it either, so here’s how to install it yourself:
 ⚠️ **This only lasts until you restart Firefox.**  
 
 #### **Permanent Installation (Self-Signing)**  
-Want it to stick around? You’ll need to **self-sign** the extension(not tested):  
+Want it to stick around? You’ll need to **self-sign** the extension (not tested):  
 
 1. **Create a Firefox Add-ons (AMO) account** [here](https://addons.mozilla.org/developers/).  
 2. **Zip your extension files** (not the folder, just the contents).  
