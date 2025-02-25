@@ -1,0 +1,47 @@
+{
+  "manifest_version": 2,
+  "name": "Redgifs Downloader",
+  "version": "1.1",
+  "description": "The button that RedGifs forgot to add.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "redgifs-downloader@extensiondownloader.com",
+      "strict_min_version": "58.0"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "webRequest",
+    "downloads",
+    "activeTab",
+    "storage",
+    "tabs",
+    "clipboardWrite",
+    "*://*.redgifs.com/*",
+    "*://*.gumroad.com/*"
+  ],
+  "background": {
+    "scripts": ["browser-polyfill.min.js", "background.js"],
+    "persistent": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.redgifs.com/*"],
+      "js": ["browser-polyfill.min.js", "content.js"]
+    }
+  ],
+  "browser_action": {
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [
+    "mp4worker.js",
+    "payment.js",
+    "popup.html",
+    "popup.js",
+    "browser-polyfill.min.js"
+  ]
+} 

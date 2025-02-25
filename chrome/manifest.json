@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Redgifs Downloader Button",
+  "version": "1.0",
+  "description": "The button that RedGifs forgot to add.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "webRequest",
+    "activeTab",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.redgifs.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.redgifs.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [{
+    "resources": ["mp4worker.js"],
+    "matches": ["*://*.redgifs.com/*"]
+  }]
+} 
