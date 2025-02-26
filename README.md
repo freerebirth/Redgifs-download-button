@@ -65,6 +65,15 @@ Want it to stick around? You’ll need to **self-sign** the extension (not teste
 If you have ideas for improvements, found a bug, or just wanna say thanks, feel free to **open an issue** or drop a comment.  
 
 ---
+## ☕ Support My Work  
+
+If this extension saved you from sketchy websites and annoying workarounds, consider **buying me a coffee** or sending a small donation.  
+
+I don’t do paywalls, ads, or weird limitations—just **fast, simple, and useful tools**. Your support helps me keep it that way! 🚀  
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/M4M31B5A8B)  
+
+💙 **Thanks for keeping this project alive!** 
 
 ## 🚀 Enjoy!  
 This is the **Redgifs Download button you always wanted but never got.** Now you have it.  
