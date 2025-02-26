@@ -71,9 +71,12 @@ If this extension saved you from sketchy websites and annoying workarounds, cons
 
 I don’t do paywalls, ads, or weird limitations—just **fast, simple, and useful tools**. Your support helps me keep it that way! 🚀  
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/M4M31B5A8B)  
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/M4M31B5A8B)
+[![Liberapay](https://img.shields.io/badge/Support%20Me%20on%20Liberapay-%23F6C915?style=for-the-badge&logo=liberapay&logoColor=black)](https://it.liberapay.com/freerebirth/)  
+
 
 💙 **Thanks for keeping this project alive!** 
+---
 
 ## 🚀 Enjoy!  
 This is the **Redgifs Download button you always wanted but never got.** Now you have it.  
