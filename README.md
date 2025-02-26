@@ -9,11 +9,11 @@
 ### ✅ Approved by Me.  
 
 I tried to do things the *proper* way. I really did. Submitted this extension to the **Chrome Web Store** and the **Firefox Add-ons Store**, thinking,  
-*"Hey, this is a simple, useful tool—what could go wrong?"*  
+*"Hey, this is a simple, useful tool, what could go wrong? it's just an implementation"*  
 
 Well… **both rejected it.** 🎉  
 
-So I said **"F**k it"** and uploaded it here.  
+So I said **"Fu*k it"** and uploaded it here.  
 
 No weird websites. No sketchy extensions. Just a **clean, fast, and easy** way to download Redgifs videos **in HD, with audio, instantly**.  
 
