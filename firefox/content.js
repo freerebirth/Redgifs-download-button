@@ -1,8 +1,15 @@
 // Track processed players to prevent duplicate buttons
 const processedPlayers = new WeakSet();
 
+// Debug helper
+function debug(message, data = null) {
+    console.log(`[RedgifsDownloader Debug] ${message}`, data || '');
+}
+
 // Create and add download button
 async function addDownloadButton(container) {
+    debug('Adding download button to container:', container);
+    
     const downloadBtn = document.createElement('button');
     downloadBtn.className = 'redgifs-download-btn';
     downloadBtn.innerHTML = '⬇️ Download';
@@ -11,7 +18,7 @@ async function addDownloadButton(container) {
         position: absolute;
         top: 10px;
         right: 70px;
-        z-index: 9999;
+        z-index: 100000;
         padding: 8px 16px;
         background: rgba(0, 0, 0, 0.7);
         color: white;
@@ -25,6 +32,7 @@ async function addDownloadButton(container) {
         align-items: center;
         gap: 6px;
         transform: scale(1);
+        pointer-events: auto;
     `;
 
     downloadBtn.addEventListener('mouseover', () => {
@@ -38,13 +46,24 @@ async function addDownloadButton(container) {
     });
 
     downloadBtn.addEventListener('click', handleDownload);
-    container.appendChild(downloadBtn);
+
+    // Insert the button in the TapTracker
+    const tapTracker = container.closest('.TapTracker');
+    if (tapTracker) {
+        debug('Found TapTracker, inserting button');
+        tapTracker.appendChild(downloadBtn);
+    } else {
+        debug('No TapTracker found, inserting in container');
+        container.appendChild(downloadBtn);
+    }
+
+    debug('Download button added successfully');
 }
 
 // Handle download button click
 async function handleDownload(event) {
     const btn = event.target;
-    const container = btn.closest('.Player');
+    const container = btn.closest('.GifPreviewV2');
     if (!container) return;
 
     const videoId = getVideoIdFromContainer(container);
@@ -69,15 +88,14 @@ async function handleDownload(event) {
 
 // Get video ID from container
 function getVideoIdFromContainer(container) {
-    // Try from parent GifPreview first
-    const parentGif = container.closest('.GifPreview');
-    if (parentGif && parentGif.id) {
-        const gifIdMatch = parentGif.id.match(/gif_(.+)/);
+    // Try from GifPreviewV2 ID first
+    if (container && container.id) {
+        const gifIdMatch = container.id.match(/gif_(.+)/);
         if (gifIdMatch) return gifIdMatch[1];
     }
 
     // Try from video source
-    const video = container.querySelector('video');
+    const video = container.querySelector('.PlayerV2-Video video');
     if (video && video.src) {
         const patterns = [
             /\/gifs\/([^\/]+)\/hd/,
@@ -294,64 +312,122 @@ class RetryManager {
 
 const retryManager = new RetryManager();
 
-// Initialize observers
-const intersectionObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting && entry.target.classList.contains('Player')) {
-            addDownloadButtonIfNeeded(entry.target);
-        }
-    });
-}, { threshold: 0.1 });
-
-const mutationObserver = new MutationObserver((mutations) => {
-    mutations.forEach(mutation => {
-        mutation.addedNodes.forEach(node => {
-            if (node.nodeType === 1) {
-                if (node.classList?.contains('Player')) {
-                    intersectionObserver.observe(node);
-                    addDownloadButtonIfNeeded(node);
-                }
-                node.querySelectorAll?.('.Player').forEach(player => {
-                    intersectionObserver.observe(player);
-                    addDownloadButtonIfNeeded(player);
-                });
-            }
-        });
-
-        if (mutation.type === 'attributes' && 
-            mutation.target.classList?.contains('Player')) {
-            addDownloadButtonIfNeeded(mutation.target);
-        }
-    });
-});
-
-// Add download button if not already processed
+// Check if download button should be added
 function addDownloadButtonIfNeeded(container) {
-    if (!processedPlayers.has(container) && !container.querySelector('.redgifs-download-btn')) {
-        processedPlayers.add(container);
-        addDownloadButton(container);
+    debug('Checking if button should be added to:', container);
+    
+    if (!container) {
+        debug('Container is null or undefined');
+        return;
     }
+
+    const gifId = container.id;
+    if (!gifId) {
+        debug('Container has no ID');
+        return;
+    }
+
+    // Check if we've already processed this container in this session
+    if (processedPlayers.has(container)) {
+        debug('Container already processed');
+        return;
+    }
+
+    // Find the PlayerV2 within the TapTracker
+    const tapTracker = container.querySelector('.TapTracker');
+    if (!tapTracker) {
+        debug('No TapTracker found, waiting...');
+        return;
+    }
+
+    const playerV2 = tapTracker.querySelector('.PlayerV2');
+    if (!playerV2) {
+        debug('No PlayerV2 found, waiting...');
+        return;
+    }
+
+    // Check if button already exists in TapTracker
+    const existingBtn = tapTracker.querySelector('.redgifs-download-btn');
+    if (existingBtn) {
+        debug('Button already exists');
+        return;
+    }
+
+    debug('Adding button to PlayerV2');
+    processedPlayers.add(container);
+    addDownloadButton(playerV2);
 }
 
 // Initialize observers
 function initObservers() {
-    mutationObserver.observe(document.body, {
+    debug('Initializing observers');
+    
+    // Observer for dynamically loaded videos
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            // Check if we need to re-add buttons that might have been removed
+            if (mutation.type === 'childList' && mutation.removedNodes.length > 0) {
+                const gifPreviews = document.querySelectorAll('.GifPreviewV2');
+                gifPreviews.forEach(preview => {
+                    const tapTracker = preview.querySelector('.TapTracker');
+                    if (tapTracker && !tapTracker.querySelector('.redgifs-download-btn')) {
+                        processedPlayers.delete(preview);
+                        setTimeout(() => addDownloadButtonIfNeeded(preview), 100);
+                    }
+                });
+            }
+
+            // Check for new nodes
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.classList.contains('GifPreviewV2')) {
+                        debug('Found new GifPreviewV2:', node);
+                        setTimeout(() => addDownloadButtonIfNeeded(node), 100);
+                    }
+                    const players = node.querySelectorAll('.GifPreviewV2');
+                    players.forEach(player => {
+                        setTimeout(() => addDownloadButtonIfNeeded(player), 100);
+                    });
+                }
+            }
+        }
+    });
+
+    // Start observing with more specific config
+    observer.observe(document.body, {
         childList: true,
         subtree: true,
         attributes: true,
         attributeFilter: ['class']
     });
-    
-    document.querySelectorAll('.Player').forEach(player => {
-        intersectionObserver.observe(player);
-        addDownloadButtonIfNeeded(player);
+    debug('Observer started');
+
+    // Check for existing videos
+    const existingPlayers = document.querySelectorAll('.GifPreviewV2');
+    debug(`Found ${existingPlayers.length} existing GifPreviewV2 elements`);
+    existingPlayers.forEach(player => {
+        setTimeout(() => addDownloadButtonIfNeeded(player), 100);
     });
+
+    // Periodically check for videos that might have lost their buttons
+    setInterval(() => {
+        const gifPreviews = document.querySelectorAll('.GifPreviewV2');
+        gifPreviews.forEach(preview => {
+            const tapTracker = preview.querySelector('.TapTracker');
+            if (tapTracker && !tapTracker.querySelector('.redgifs-download-btn')) {
+                processedPlayers.delete(preview);
+                addDownloadButtonIfNeeded(preview);
+            }
+        });
+    }, 1000);
 }
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
+    debug('Document still loading, waiting for DOMContentLoaded');
     document.addEventListener('DOMContentLoaded', initObservers);
 } else {
+    debug('Document already loaded, initializing immediately');
     initObservers();
 }
 

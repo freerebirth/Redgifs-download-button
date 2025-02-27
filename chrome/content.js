@@ -1,8 +1,15 @@
 // Track processed players to prevent duplicate buttons
 const processedPlayers = new WeakSet();
 
+// Debug helper
+function debug(message, data = null) {
+    console.log(`[RedgifsDownloader Debug] ${message}`, data || '');
+}
+
 // Create and add download button
 async function addDownloadButton(container) {
+    debug('Adding download button to container:', container);
+    
     const downloadBtn = document.createElement('button');
     downloadBtn.className = 'redgifs-download-btn';
     downloadBtn.innerHTML = '⬇️ Download';
@@ -43,10 +50,14 @@ async function addDownloadButton(container) {
     // Insert the button in the TapTracker
     const tapTracker = container.closest('.TapTracker');
     if (tapTracker) {
+        debug('Found TapTracker, inserting button');
         tapTracker.appendChild(downloadBtn);
     } else {
+        debug('No TapTracker found, inserting in container');
         container.appendChild(downloadBtn);
     }
+
+    debug('Download button added successfully');
 }
 
 // Handle download button click
@@ -66,7 +77,7 @@ async function handleDownload(event) {
         const manifest = await fetchM3u8(apiUrl);
         await processWithWorker(videoId, manifest, btn);
     } catch (error) {
-        console.error('Download error:', error);
+        console.error('[Debug] Download error:', error);
         btn.innerHTML = '❌ Error';
         setTimeout(() => {
             btn.innerHTML = '⬇️ Download';
@@ -320,33 +331,54 @@ const retryManager = new RetryManager();
 
 // Check if download button should be added
 function addDownloadButtonIfNeeded(container) {
-    if (!container || !container.id || processedPlayers.has(container)) {
+    debug('Checking if button should be added to:', container);
+    
+    if (!container) {
+        debug('Container is null or undefined');
+        return;
+    }
+
+    const gifId = container.id;
+    if (!gifId) {
+        debug('Container has no ID');
+        return;
+    }
+
+    // Check if we've already processed this container in this session
+    if (processedPlayers.has(container)) {
+        debug('Container already processed');
         return;
     }
 
     // Find the PlayerV2 within the TapTracker
     const tapTracker = container.querySelector('.TapTracker');
     if (!tapTracker) {
+        debug('No TapTracker found, waiting...');
         return;
     }
 
     const playerV2 = tapTracker.querySelector('.PlayerV2');
     if (!playerV2) {
+        debug('No PlayerV2 found, waiting...');
         return;
     }
 
     // Check if button already exists in TapTracker
     const existingBtn = tapTracker.querySelector('.redgifs-download-btn');
     if (existingBtn) {
+        debug('Button already exists');
         return;
     }
 
+    debug('Adding button to PlayerV2');
     processedPlayers.add(container);
     addDownloadButton(playerV2);
 }
 
 // Initialize mutation observers
 function initObservers() {
+    debug('Initializing observers');
+    
     // Observer for dynamically loaded videos
     const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
@@ -366,6 +398,7 @@ function initObservers() {
             for (const node of mutation.addedNodes) {
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     if (node.classList.contains('GifPreviewV2')) {
+                        debug('Found new GifPreviewV2:', node);
                         setTimeout(() => addDownloadButtonIfNeeded(node), 100);
                     }
                     const players = node.querySelectorAll('.GifPreviewV2');
@@ -384,9 +417,11 @@ function initObservers() {
         attributes: true,
         attributeFilter: ['class']
     });
+    debug('Observer started');
 
     // Check for existing videos
     const existingPlayers = document.querySelectorAll('.GifPreviewV2');
+    debug(`Found ${existingPlayers.length} existing GifPreviewV2 elements`);
     existingPlayers.forEach(player => {
         setTimeout(() => addDownloadButtonIfNeeded(player), 100);
     });
@@ -406,7 +441,9 @@ function initObservers() {
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
+    debug('Document still loading, waiting for DOMContentLoaded');
     document.addEventListener('DOMContentLoaded', initObservers);
 } else {
+    debug('Document already loaded, initializing immediately');
     initObservers();
 }

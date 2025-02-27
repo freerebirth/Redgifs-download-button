@@ -21,8 +21,7 @@
     "storage",
     "tabs",
     "clipboardWrite",
-    "*://*.redgifs.com/*",
-    "*://*.gumroad.com/*"
+    "*://*.redgifs.com/*"
   ],
   "background": {
     "scripts": ["browser-polyfill.min.js", "background.js"],
@@ -39,9 +38,6 @@
   },
   "web_accessible_resources": [
     "mp4worker.js",
-    "payment.js",
-    "popup.html",
-    "popup.js",
     "browser-polyfill.min.js"
   ]
 } 

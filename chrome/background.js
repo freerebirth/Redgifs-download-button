@@ -8,14 +8,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         handleSegmentData(message.segmentId, message.data);
     } else if (message.type === 'SEGMENT_ERROR') {
         handleSegmentError(message.segmentId, message.error);
-    } else if (message.type === 'OPEN_PAYMENT_WINDOW') {
-        chrome.windows.create({
-            url: chrome.runtime.getURL('payment.html'),
-            type: 'popup',
-            width: 500,
-            height: 600,
-            focused: true
-        });
     }
 });
 
@@ -102,23 +94,12 @@ async function enhancedFetch(url, options = {}, retries = 3) {
             });
 
             if (!response.ok) {
-                if (response.status === 403) {
-                    throw new Error('Access forbidden - Authentication required');
-                } else if (response.status === 401) {
-                    throw new Error('Unauthorized - Invalid or expired token');
-                }
-                
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             return response;
         } catch (error) {
             lastError = error;
-            
-            if (error.message.includes('Authentication required') ||
-                error.message.includes('Invalid or expired token')) {
-                throw error;
-            }
             
             if (i < retries - 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
