@@ -1,7 +1,4 @@
-![Thebuttontheyforfo](https://github.com/user-attachments/assets/e1989557-d55d-41b6-9e83-999a191f89b0)
-
-
-# 🚀 Redgifs Button Downloader 
+# 🚀 Redgifs Downloader Button  
 
 ### The button Redgifs forgot to add.  
 
@@ -9,11 +6,11 @@
 ### ✅ Approved by Me.  
 
 I tried to do things the *proper* way. I really did. Submitted this extension to the **Chrome Web Store** and the **Firefox Add-ons Store**, thinking,  
-*"Hey, this is a simple, useful tool, what could go wrong? it's just an implementation"*  
+*"Hey, this is a simple, useful tool—what could go wrong?"*  
 
 Well… **both rejected it.** 🎉  
 
-So I said **"Fu*k it"** and uploaded it here.  
+So I said **"F**k it"** and uploaded it here.  
 
 No weird websites. No sketchy extensions. Just a **clean, fast, and easy** way to download Redgifs videos **in HD, with audio, instantly**.  
 
@@ -55,7 +52,7 @@ Mozilla didn’t want it either, so here’s how to install it yourself:
 ⚠️ **This only lasts until you restart Firefox.**  
 
 #### **Permanent Installation (Self-Signing)**  
-Want it to stick around? You’ll need to **self-sign** the extension (not tested):  
+Want it to stick around? You’ll need to **self-sign** the extension(not tested):  
 
 1. **Create a Firefox Add-ons (AMO) account** [here](https://addons.mozilla.org/developers/).  
 2. **Zip your extension files** (not the folder, just the contents).  
@@ -67,18 +64,6 @@ Want it to stick around? You’ll need to **self-sign** the extension (not teste
 ## 💡 Suggestions? Bugs?  
 If you have ideas for improvements, found a bug, or just wanna say thanks, feel free to **open an issue** or drop a comment.  
 
----
-## ☕ Support My Work  
-
-If this extension saved you from sketchy websites and annoying workarounds, consider **buying me a coffee** or sending a small donation.  
-
-I don’t do paywalls, ads, or weird limitations—just **fast, simple, and useful tools**. Your support helps me keep it that way! 🚀  
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/M4M31B5A8B)
-[![Liberapay](https://img.shields.io/badge/Support%20Me%20on%20Liberapay-%23F6C915?style=for-the-badge&logo=liberapay&logoColor=black)](https://it.liberapay.com/freerebirth/)  
-
-
-💙 **Thanks for keeping this project alive!** 
 ---
 
 ## 🚀 Enjoy!  
