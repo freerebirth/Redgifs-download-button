@@ -51,14 +51,30 @@ Mozilla didn’t want it either, so here’s how to install it yourself:
 
 ⚠️ **This only lasts until you restart Firefox.**  
 
+<<<<<<< HEAD
 #### **Permanent Installation (Self-Signing)**  
 Want it to stick around? You’ll need to **self-sign** the extension(not tested):  
+=======
+### 🔥 Permanent Installation (Without Signing)  
+Some versions of Firefox **allow installing unsigned extensions permanently**:  
+>>>>>>> 0cc67b5c27ec4cfdfeb2fa1040db9546594b8c67
 
-1. **Create a Firefox Add-ons (AMO) account** [here](https://addons.mozilla.org/developers/).  
-2. **Zip your extension files** (not the folder, just the contents).  
-3. **Submit it for self-signing** [here](https://addons.mozilla.org/en-US/developers/addon/submit/distribution).  
-4. **Download the signed `.xpi` file** and install it via `about:addons`.  
+- **Firefox Developer Edition**  
+- **Firefox Nightly**  
+- **Firefox ESR (Enterprise Edition)**  
+- **Unbranded Firefox Builds**  
 
+If you're using one of these versions, you can **disable extension signing** and install it like a normal add-on:  
+
+1. Open Firefox and go to `about:config`.  
+2. Search for `xpinstall.signatures.required`.  
+3. **Set it to `false`** to allow unsigned add-ons.  
+4. Now go to `about:addons` and click **"Install Add-on From File"**, then select the `.xpi` file from the extracted folder.  
+
+✅ **Now you have a permanently installed extension without signing!**  
+
+For more details, check Mozilla’s official documentation:  
+🔗 [Extension Signing on Firefox](https://wiki.mozilla.org/Add-ons/Extension_Signing)  
 ---
 
 ## 💡 Suggestions? Bugs?  
