@@ -2,7 +2,7 @@
 const processedPlayers = new WeakSet();
 
 // Current extension version - update this when releasing new versions
-const CURRENT_VERSION = '1.4';
+const CURRENT_VERSION = '1.3';
 const GITHUB_REPO = 'https://github.com/freerebirth/Redgifs-download-button';
 
 // Add update notification styles
