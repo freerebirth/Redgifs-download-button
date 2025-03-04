@@ -1,6 +1,153 @@
 // Track processed players to prevent duplicate buttons
 const processedPlayers = new WeakSet();
 
+// Current extension version - update this when releasing new versions
+const CURRENT_VERSION = '1.2';
+const GITHUB_REPO = 'https://github.com/freerebirth/Redgifs-download-button';
+
+// Add update notification styles
+const updateStyles = document.createElement('style');
+updateStyles.textContent = `
+.redgifs-update-notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 2147483647;
+    background: rgba(0, 0, 0, 0.9);
+    border-radius: 8px;
+    padding: 16px;
+    max-width: 300px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    animation: slideIn 0.3s ease-out;
+    display: none;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+.redgifs-update-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.redgifs-update-content a {
+    color: #2196F3;
+    text-decoration: none;
+    padding: 8px 16px;
+    background: rgba(33, 150, 243, 0.1);
+    border-radius: 4px;
+    text-align: center;
+    transition: background 0.3s;
+}
+
+.redgifs-update-content a:hover {
+    background: rgba(33, 150, 243, 0.2);
+}
+
+.redgifs-update-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.redgifs-update-button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    flex: 1;
+    transition: background 0.3s;
+}
+
+.redgifs-update-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.redgifs-update-button.dismiss {
+    background: transparent;
+}
+`;
+document.head.appendChild(updateStyles);
+
+// Check for updates
+async function checkForUpdates() {
+    try {
+        const response = await fetch('https://api.github.com/repos/YourUsername/redgifs-downloader/releases/latest');
+        if (!response.ok) return;
+        
+        const release = await response.json();
+        const latestVersion = release.tag_name.replace('v', '');
+        
+        // Compare versions
+        if (compareVersions(latestVersion, CURRENT_VERSION) > 0) {
+            showUpdateNotification(latestVersion, release.html_url);
+        }
+    } catch (error) {
+        console.error('Update check failed:', error);
+    }
+}
+
+// Compare version numbers
+function compareVersions(v1, v2) {
+    const parts1 = v1.split('.');
+    const parts2 = v2.split('.');
+    
+    for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+        const num1 = parseInt(parts1[i] || 0);
+        const num2 = parseInt(parts2[i] || 0);
+        if (num1 > num2) return 1;
+        if (num1 < num2) return -1;
+    }
+    return 0;
+}
+
+// Show update notification
+function showUpdateNotification(newVersion, updateUrl) {
+    // Check if user has dismissed this version
+    const dismissedVersion = localStorage.getItem('redgifs-dismissed-version');
+    if (dismissedVersion === newVersion) return;
+    
+    const notification = document.createElement('div');
+    notification.className = 'redgifs-update-notification';
+    notification.innerHTML = `
+        <div class="redgifs-update-content">
+            <div>
+                <strong>Update Available!</strong>
+                <p>Version ${newVersion} of RedGifs Downloader is available.</p>
+            </div>
+            <a href="${updateUrl}" target="_blank">Download Update</a>
+            <div class="redgifs-update-buttons">
+                <button class="redgifs-update-button remind">Remind Later</button>
+                <button class="redgifs-update-button dismiss">Dismiss</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    // Show with animation
+    setTimeout(() => notification.style.display = 'block', 100);
+    
+    // Handle button clicks
+    notification.querySelector('.remind').addEventListener('click', () => {
+        notification.remove();
+    });
+    
+    notification.querySelector('.dismiss').addEventListener('click', () => {
+        localStorage.setItem('redgifs-dismissed-version', newVersion);
+        notification.remove();
+    });
+}
+
+// Check for updates when the script loads
+setTimeout(checkForUpdates, 5000); // Check after 5 seconds to not interfere with initial page load
+
 // Create and add download button
 async function addDownloadButton(container) {
     // Generate a unique ID for the container if it doesn't have one

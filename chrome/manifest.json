@@ -16,7 +16,8 @@
     "downloads"
   ],
   "host_permissions": [
-    "*://*.redgifs.com/*"
+    "*://*.redgifs.com/*",
+    "*://api.github.com/*"
   ],
   "background": {
     "service_worker": "background.js",

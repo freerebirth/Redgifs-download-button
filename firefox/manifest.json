@@ -21,7 +21,8 @@
     "storage",
     "tabs",
     "clipboardWrite",
-    "*://*.redgifs.com/*"
+    "*://*.redgifs.com/*",
+    "*://api.github.com/*"
   ],
   "background": {
     "scripts": ["browser-polyfill.min.js", "background.js"],
