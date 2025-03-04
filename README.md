@@ -51,13 +51,13 @@ Mozilla didn’t want it either, so here’s how to install it yourself:
 
 ⚠️ **This only lasts until you restart Firefox.**  
 
-<<<<<<< HEAD
+
 #### **Permanent Installation (Self-Signing)**  
 Want it to stick around? You’ll need to **self-sign** the extension(not tested):  
 =======
 ### 🔥 Permanent Installation (Without Signing)  
 Some versions of Firefox **allow installing unsigned extensions permanently**:  
->>>>>>> 0cc67b5c27ec4cfdfeb2fa1040db9546594b8c67
+
 
 - **Firefox Developer Edition**  
 - **Firefox Nightly**  
