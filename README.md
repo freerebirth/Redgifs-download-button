@@ -24,6 +24,7 @@ No weird websites. No sketchy extensions. Just a **clean, fast, and easy** way t
 ✅ **Fast & smooth** – No delays, no lag, just results.  
 ✅ **Completely free & unlimited** – No hidden fees, no daily limits.  
 ✅ **Lightweight & efficient** – Runs seamlessly without slowing down your browser.
+
 ✅ **Update system** - Everytime Redgifs.com make something to break it, i will work to make it working again, and you will be notified directly from extension.
 
 ---
