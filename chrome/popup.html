@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Redgifs Downloader</title>
     <style>
         * {
@@ -50,6 +51,7 @@
         .links {
             display: flex;
             gap: 8px;
+            margin-bottom: 12px;
         }
 
         .links a {
@@ -85,6 +87,63 @@
             background: rgba(255, 255, 255, 0.1);
             color: rgba(255, 255, 255, 0.8);
         }
+
+        .donate-section {
+            text-align: center;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+        }
+
+        .donate-section p {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.45);
+            margin-bottom: 8px;
+        }
+
+        .donate-links {
+            display: flex;
+            gap: 8px;
+        }
+
+        .donate-links a {
+            flex: 1;
+            display: block;
+            text-align: center;
+            padding: 7px 10px;
+            font-size: 12px;
+            font-weight: 500;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: background 0.2s, border-color 0.2s, transform 0.15s;
+        }
+
+        .donate-links a:hover {
+            transform: scale(1.03);
+        }
+
+        .donate-links a.kofi {
+            color: #ff5e5b;
+            background: rgba(255, 94, 91, 0.1);
+            border: 1px solid rgba(255, 94, 91, 0.25);
+        }
+
+        .donate-links a.kofi:hover {
+            background: rgba(255, 94, 91, 0.2);
+            border-color: rgba(255, 94, 91, 0.4);
+        }
+
+        .donate-links a.liberapay {
+            color: #f6c915;
+            background: rgba(246, 201, 21, 0.08);
+            border: 1px solid rgba(246, 201, 21, 0.2);
+        }
+
+        .donate-links a.liberapay:hover {
+            background: rgba(246, 201, 21, 0.15);
+            border-color: rgba(246, 201, 21, 0.35);
+        }
     </style>
 </head>
 <body>
@@ -98,6 +157,13 @@
     <div class="links">
         <a class="github" href="https://github.com/freerebirth/Redgifs-download-button" target="_blank">GitHub</a>
         <a class="issues" href="https://github.com/freerebirth/Redgifs-download-button/issues" target="_blank">Report Bug</a>
+    </div>
+    <div class="donate-section">
+        <p>Support the development ❤️</p>
+        <div class="donate-links">
+            <a class="kofi" href="https://ko-fi.com/freerebirth" target="_blank">☕ Ko-fi</a>
+            <a class="liberapay" href="https://liberapay.com/freerebirth" target="_blank">🎁 Liberapay</a>
+        </div>
     </div>
 </body>
 </html>
