@@ -3,35 +3,101 @@
 <head>
     <title>Redgifs Downloader</title>
     <style>
-        body {
-            width: 300px;
-            padding: 20px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #1a1a1a;
-            color: white;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        h2 {
-            color: #ff4444;
-            margin: 0 0 15px 0;
+        body {
+            width: 320px;
+            padding: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #121212;
+            color: #e0e0e0;
+        }
+
+        .header {
             text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .header h2 {
+            color: #ff5252;
+            font-size: 16px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        .version {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 4px;
         }
 
         .info {
             text-align: center;
-            margin-bottom: 20px;
-            padding: 10px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 4px;
-            font-size: 14px;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            font-size: 13px;
             line-height: 1.5;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 12px;
+        }
+
+        .links {
+            display: flex;
+            gap: 8px;
+        }
+
+        .links a {
+            flex: 1;
+            display: block;
+            text-align: center;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 500;
+            text-decoration: none;
+            border-radius: 6px;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .links a.github {
+            color: #90caf9;
+            background: rgba(33, 150, 243, 0.1);
+            border: 1px solid rgba(33, 150, 243, 0.2);
+        }
+
+        .links a.github:hover {
+            background: rgba(33, 150, 243, 0.2);
+            border-color: rgba(33, 150, 243, 0.35);
+        }
+
+        .links a.issues {
+            color: rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .links a.issues:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.8);
         }
     </style>
 </head>
 <body>
-    <h2>Redgifs Downloader</h2>
+    <div class="header">
+        <h2>⬇️ Redgifs Downloader</h2>
+        <div class="version">v1.4</div>
+    </div>
     <div class="info">
-        Click the download button next to any video to save it.
+        Click the download button on any<br>Redgifs video to save it in HD.
+    </div>
+    <div class="links">
+        <a class="github" href="https://github.com/freerebirth/Redgifs-download-button" target="_blank">GitHub</a>
+        <a class="issues" href="https://github.com/freerebirth/Redgifs-download-button/issues" target="_blank">Report Bug</a>
     </div>
 </body>
-</html> 
+</html>
