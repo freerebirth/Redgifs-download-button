@@ -163,11 +163,15 @@ Your support helps me keep it that way! 🚀
 
 ---
 
+<div align="center">
+
 ## 💡 Suggestions? Bugs?  
 
 Found a bug? Have an idea? Just wanna say thanks?  
 
 [![Open an Issue](https://img.shields.io/badge/Open%20an%20Issue-GitHub-181717?style=for-the-badge&logo=github)](https://github.com/freerebirth/Redgifs-download-button/issues)
+
+</div>
 
 ---
 
