@@ -346,31 +346,26 @@ function downloadViaBackground(url, videoId, btn) {
     });
 }
 
-// Fallback 1: Fetch via background service worker, download via blob
+// Fallback 1: Fetch and download via background (preserves folder setting)
 async function downloadViaBlobFallback(url, filename, btn) {
     try {
         setButtonState(btn, 'downloading', '⏳ Fetching video...');
 
         const response = await new Promise((resolve, reject) => {
             try {
-                chrome.runtime.sendMessage({ type: 'FETCH_BLOB', url }, resolve);
+                chrome.runtime.sendMessage({
+                    type: 'FETCH_AND_DOWNLOAD',
+                    url,
+                    filename
+                }, resolve);
             } catch {
                 reject(new Error('sendMessage not supported'));
             }
         });
 
-        if (!response?.success || !response.data) {
-            throw new Error(response?.error || 'Fetch failed');
+        if (!response?.success) {
+            throw new Error(response?.error || 'Download failed');
         }
-
-        // Convert base64 to blob and trigger download
-        const binaryString = atob(response.data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        const blob = new Blob([bytes], { type: response.mimeType || 'video/mp4' });
-        triggerBlobDownload(blob, filename);
 
         setButtonState(btn, 'success', '✅ Downloaded');
     } catch {

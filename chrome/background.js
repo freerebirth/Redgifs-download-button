@@ -24,6 +24,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             fetchVideoAsBase64(message.url, sendResponse);
             return true; // Keep channel open for async response
 
+        case 'FETCH_AND_DOWNLOAD':
+            handleFetchAndDownload(message.url, message.filename, sendResponse);
+            return true; // Keep channel open for async response
+
         case 'PROCESS_VIDEO':
             handleVideoProcessing(message.videoId, message.manifest, sender.tab.id);
             break;
@@ -295,6 +299,45 @@ async function fetchVideoAsBase64(url, sendResponse) {
         const base64 = btoa(chunks.join(''));
 
         sendResponse({ success: true, data: base64, mimeType: 'video/mp4' });
+    } catch (error) {
+        sendResponse({ success: false, error: error.message });
+    }
+}
+
+// Fetch video and download directly with folder prefix
+async function handleFetchAndDownload(url, filename, sendResponse) {
+    try {
+        const response = await fetch(url, {
+            credentials: 'include',
+            mode: 'cors'
+        });
+
+        if (!response.ok) {
+            sendResponse({ success: false, error: `HTTP ${response.status}` });
+            return;
+        }
+
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+
+        chrome.storage.local.get(['downloadFolder'], (result) => {
+            const folder = result.downloadFolder || DEFAULT_DOWNLOAD_FOLDER;
+            const finalFilename = folder + filename;
+
+            chrome.downloads.download({
+                url: blobUrl,
+                filename: finalFilename,
+                conflictAction: 'uniquify',
+                saveAs: false
+            }, (downloadId) => {
+                URL.revokeObjectURL(blobUrl);
+                if (chrome.runtime.lastError) {
+                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                } else {
+                    sendResponse({ success: true, downloadId });
+                }
+            });
+        });
     } catch (error) {
         sendResponse({ success: false, error: error.message });
     }
