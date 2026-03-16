@@ -16,6 +16,44 @@ const UPDATE_CHECK_DELAY_MS = 5000;
 
 // --- State ---
 const processedPlayers = new WeakSet();
+const downloadHistory = new Set();
+
+// ============================================
+// Download History
+// ============================================
+function loadDownloadHistory() {
+    chrome.storage.local.get(['downloadHistory'], (result) => {
+        if (result.downloadHistory) {
+            result.downloadHistory.forEach(id => downloadHistory.add(id));
+        }
+        // Mark any already-injected buttons
+        document.querySelectorAll('.redgifs-download-btn-wrapper').forEach(wrapper => {
+            const containerId = wrapper.dataset.containerId;
+            if (!containerId) return;
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const videoId = getVideoIdFromContainer(container);
+            if (videoId && downloadHistory.has(videoId)) {
+                const btn = wrapper.querySelector('.redgifs-download-btn');
+                if (btn && !btn.classList.contains('downloading')) {
+                    setButtonState(btn, 'downloaded', '✅ Downloaded');
+                }
+            }
+        });
+    });
+}
+
+function recordDownload(videoId) {
+    if (!videoId) return;
+    downloadHistory.add(videoId);
+    chrome.storage.local.get(['downloadHistory'], (result) => {
+        const history = result.downloadHistory || [];
+        if (!history.includes(videoId)) {
+            history.push(videoId);
+            chrome.storage.local.set({ downloadHistory: history });
+        }
+    });
+}
 
 // ============================================
 // Retry Manager - Exponential backoff + jitter
@@ -51,7 +89,7 @@ const retryManager = new RetryManager();
 // ============================================
 function setButtonState(btn, state, text) {
     // Remove all state classes
-    btn.classList.remove('downloading', 'success', 'error');
+    btn.classList.remove('downloading', 'success', 'error', 'downloaded');
     if (state) {
         btn.classList.add(state);
     }
@@ -229,6 +267,7 @@ async function handleDownload(event) {
         const directUrl = await getDirectVideoUrl(videoId);
         if (directUrl) {
             await downloadViaBackground(directUrl, videoId, btn);
+            recordDownload(videoId);
             return;
         }
     } catch {
@@ -245,6 +284,7 @@ async function handleDownload(event) {
             const m4sUrl = extractM4sUrl(manifest, videoId);
             if (m4sUrl) {
                 await downloadViaBackground(m4sUrl, videoId, btn);
+                recordDownload(videoId);
                 return;
             }
         }
@@ -257,6 +297,7 @@ async function handleDownload(event) {
         const capitalizedId = videoId.charAt(0).toUpperCase() + videoId.slice(1);
         const directUrl = `https://media.redgifs.com/${capitalizedId}.m4s`;
         await downloadViaBackground(directUrl, videoId, btn);
+        recordDownload(videoId);
     } catch {
         setButtonState(btn, 'error', '❌ Failed');
         resetButton(btn);
@@ -499,6 +540,12 @@ function addDownloadButton(container) {
     btn.className = 'redgifs-download-btn';
     btn.textContent = '⬇️ Download';
 
+    // Check download history
+    const videoId = getVideoIdFromContainer(container);
+    if (videoId && downloadHistory.has(videoId)) {
+        setButtonState(btn, 'downloaded', '✅ Downloaded');
+    }
+
     btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -683,6 +730,9 @@ function arrayBufferToBase64(buffer) {
 // ============================================
 // Initialization
 // ============================================
+// Load download history
+loadDownloadHistory();
+
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initObservers);
 } else {
