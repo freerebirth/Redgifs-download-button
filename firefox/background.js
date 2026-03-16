@@ -1,6 +1,6 @@
 // ============================================
 // Redgifs Downloader - Background Script (Firefox MV3)
-// Version 1.4
+// Version 1.5
 // ============================================
 
 'use strict';

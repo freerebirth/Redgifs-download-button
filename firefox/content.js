@@ -1,12 +1,12 @@
 // ============================================
 // Redgifs Downloader - Content Script (Firefox)
-// Version 1.4 — Manifest V3
+// Version 1.5 — Manifest V3
 // ============================================
 
 'use strict';
 
 // --- Constants ---
-const CURRENT_VERSION = '1.4';
+const CURRENT_VERSION = '1.5';
 const GITHUB_REPO_API = 'https://api.github.com/repos/freerebirth/Redgifs-download-button/releases/latest';
 const GITHUB_REPO_URL = 'https://github.com/freerebirth/Redgifs-download-button';
 const BUTTON_RESET_DELAY = 2500;

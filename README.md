@@ -42,47 +42,42 @@ No weird websites. No sketchy extensions. Just a **clean, fast, and easy** way t
 | 📱 **Android support** | Works on Kiwi, Lemur, and other Chromium Android browsers. |
 | 🛡️ **Smart download** | 3-tier fallback system ensures downloads work on any browser. |
 | 🔁 **Auto-retry** | Failed downloads automatically retry with exponential backoff. |
+| 📂 **Organized downloads** | All videos saved to a `Redgifs/` subfolder in Downloads. |
+| 📝 **Download history** | Remembers what you've downloaded — no more accidental duplicates. |
 
 ---
 
-## 🆕 What's New in v1.4
+## 🆕 What's New in v1.5
+
+<details open>
+<summary>✨ <b>New Features</b></summary>
+
+- 📝 **Download history** — buttons show "✅ Downloaded" for previously downloaded videos, persists across sessions
+- 📂 **Organized downloads** — all videos now save to a `Redgifs/` subfolder inside Downloads
+- 🔧 **Configurable folder** — change the download folder via `chrome.storage.local.set({ downloadFolder: "MyFolder/" })`
+
+</details>
 
 <details>
 <summary>🐛 <b>Bug Fixes</b></summary>
 
+- ✅ Fixed downloads failing for videos with `-silent` or `-mobile` URL suffixes
+- ✅ Fixed fallback downloads not saving to the configured folder
+- ✅ Improved video ID extraction with sanitization of file extensions
+
+</details>
+
+<details>
+<summary>📋 <b>v1.4 Changelog</b></summary>
+
 - ✅ Fixed a crash bug on Chrome that broke downloads on certain pages
-- ✅ Fixed update notification on Firefox (was checking the wrong URL — oops!)
+- ✅ Fixed update notification on Firefox
 - ✅ Fixed `.m4s` file extension issue — downloads now always save as `.mp4`
-- ✅ Download errors are now shown clearly instead of failing silently
-
-</details>
-
-<details>
-<summary>📱 <b>Android Browser Support (NEW!)</b></summary>
-
-- ✅ **Kiwi Browser** — downloads now work with blob fallback
-- ✅ **Lemur Browser** — fixed `"No matching signature"` crash
-- ✅ **3-tier download fallback**: `chrome.downloads` → blob download → direct XHR
-- ✅ Works on any Android Chromium browser with extension support
-
-</details>
-
-<details>
-<summary>⚡ <b>Performance & Architecture</b></summary>
-
-- 🔄 Automatic retry with exponential backoff + jitter on failed downloads
-- 🧹 **45% less code** — removed all dead code and duplication (2,660 → 1,470 lines)
-- 🎯 Debounced DOM observer for smoother scrolling performance
-- 🎨 All styles consolidated into CSS (no more inline styles)
-
-</details>
-
-<details>
-<summary>🦊 <b>Firefox Manifest V3 Migration</b></summary>
-
-- Upgraded from Manifest V2 to Manifest V3
-- Removed `browser-polyfill.min.js` dependency
-- Minimum Firefox version: 109+
+- ✅ Android browser support (Kiwi, Lemur)
+- ✅ 3-tier download fallback system
+- 🔄 Automatic retry with exponential backoff + jitter
+- 🧹 45% less code — removed dead code and duplication
+- 🦊 Firefox Manifest V3 migration
 
 </details>
 
@@ -93,7 +88,7 @@ No weird websites. No sketchy extensions. Just a **clean, fast, and easy** way t
 ### 🟢 Chrome / Edge / Brave  
 > Since the **Chrome Web Store rejected it**, you'll need to install it manually  
 
-1. 📦 **Download** `Chrome_v1.4.zip` from the [**latest release**](https://github.com/freerebirth/Redgifs-download-button/releases/latest)  
+1. 📦 **Download** `Chrome_v1.5.zip` from the [**latest release**](https://github.com/freerebirth/Redgifs-download-button/releases/latest)  
 2. 📂 **Unzip it** anywhere on your PC  
 3. 🌐 Open **Chrome** → go to `chrome://extensions/`  
 4. 🔧 Enable **Developer Mode** (toggle in the top right corner)  
@@ -107,7 +102,7 @@ No weird websites. No sketchy extensions. Just a **clean, fast, and easy** way t
 > Mozilla didn't want it either, so here's how to install it yourself  
 
 #### 🔧 Temporary Installation (for testing)  
-1. 📦 **Download** `Firefox_v1.4.zip` from the [**latest release**](https://github.com/freerebirth/Redgifs-download-button/releases/latest)  
+1. 📦 **Download** `Firefox_v1.5.zip` from the [**latest release**](https://github.com/freerebirth/Redgifs-download-button/releases/latest)  
 2. 📂 **Unzip it** anywhere on your PC  
 3. 🌐 Open **Firefox** → go to `about:debugging#/runtime/this-firefox`  
 4. 📁 Click **"Load Temporary Add-on"** → select `manifest.json`  
@@ -137,7 +132,7 @@ If you're using one of these versions:
 
 ### 📱 Android (Kiwi / Lemur / Edge Canary)  
 
-1. 📦 **Download** `Chrome_v1.4.zip` from the [**latest release**](https://github.com/freerebirth/Redgifs-download-button/releases/latest)  
+1. 📦 **Download** `Chrome_v1.5.zip` from the [**latest release**](https://github.com/freerebirth/Redgifs-download-button/releases/latest)  
 2. 📂 **Unzip it** on your phone  
 3. 🌐 Open your browser's extension page and **load the unpacked extension**  
 
