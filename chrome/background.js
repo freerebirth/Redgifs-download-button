@@ -5,6 +5,9 @@
 
 'use strict';
 
+// Default download subfolder inside Downloads
+const DEFAULT_DOWNLOAD_FOLDER = "Redgifs/";
+
 // Track pending segment requests
 const pendingSegments = new Map();
 
@@ -41,17 +44,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Direct Download (primary method)
 // ============================================
 function handleDirectDownload(url, filename, sendResponse) {
-    chrome.downloads.download({
-        url,
-        filename,
-        conflictAction: 'uniquify',
-        saveAs: false
-    }, (downloadId) => {
-        if (chrome.runtime.lastError) {
-            sendResponse({ success: false, error: chrome.runtime.lastError.message });
-        } else {
-            sendResponse({ success: true, downloadId });
-        }
+    chrome.storage.local.get(['downloadFolder'], (result) => {
+        const folder = result.downloadFolder || DEFAULT_DOWNLOAD_FOLDER;
+        const finalFilename = folder + filename;
+
+        chrome.downloads.download({
+            url,
+            filename: finalFilename,
+            conflictAction: 'uniquify',
+            saveAs: false
+        }, (downloadId) => {
+            if (chrome.runtime.lastError) {
+                sendResponse({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+                sendResponse({ success: true, downloadId });
+            }
+        });
     });
 }
 

@@ -5,6 +5,9 @@
 
 'use strict';
 
+// Default download subfolder inside Downloads
+const DEFAULT_DOWNLOAD_FOLDER = "Redgifs/";
+
 // Track pending segment requests
 const pendingSegments = new Map();
 
@@ -33,16 +36,21 @@ browser.runtime.onMessage.addListener((message, sender) => {
 // ============================================
 // Direct Download (primary method)
 // ============================================
-function handleDirectDownload(url, filename) {
-    return browser.downloads.download({
-        url,
-        filename,
-        saveAs: false
-    }).then((downloadId) => {
+async function handleDirectDownload(url, filename) {
+    const result = await browser.storage.local.get('downloadFolder');
+    const folder = result.downloadFolder || DEFAULT_DOWNLOAD_FOLDER;
+    const finalFilename = folder + filename;
+
+    try {
+        const downloadId = await browser.downloads.download({
+            url,
+            filename: finalFilename,
+            saveAs: false
+        });
         return { success: true, downloadId };
-    }).catch((error) => {
+    } catch (error) {
         return { success: false, error: error.message };
-    });
+    }
 }
 
 // ============================================
@@ -153,9 +161,12 @@ async function handleVideoProcessing(videoId, manifest, tabId) {
         const blob = new Blob([finalResult], { type: 'video/mp4' });
         const url = URL.createObjectURL(blob);
 
+        const storageResult = await browser.storage.local.get('downloadFolder');
+        const folder = storageResult.downloadFolder || DEFAULT_DOWNLOAD_FOLDER;
+
         await browser.downloads.download({
             url,
-            filename: `redgifs_${videoId}.mp4`,
+            filename: `${folder}redgifs_${videoId}.mp4`,
             saveAs: false
         });
     } catch (error) {
