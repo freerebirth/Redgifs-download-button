@@ -214,22 +214,35 @@ async function handleDownload(event) {
     setButtonState(btn, 'downloading', '⏳ Fetching...');
     btn.style.pointerEvents = 'none';
 
+    // Strategy 1: Redgifs API v2 — get direct MP4 URL (works for all videos)
     try {
-        // Try m3u8 manifest approach first
+        const directUrl = await getDirectVideoUrl(videoId);
+        if (directUrl) {
+            await downloadViaBackground(directUrl, videoId, btn);
+            return;
+        }
+    } catch {
+        // API failed, try next strategy
+    }
+
+    // Strategy 2: HLS/m3u8 manifest (newer videos)
+    try {
         const apiUrl = `https://api.redgifs.com/v2/gifs/${videoId}/hd.m3u8`;
         const manifest = await fetchM3u8(apiUrl);
-        const m4sUrl = extractM4sUrl(manifest, videoId);
 
-        if (!m4sUrl) throw new Error('Could not extract video URL');
-
-        await downloadViaBackground(m4sUrl, videoId, btn);
+        // Verify it's actually a manifest, not an XML error
+        if (manifest && manifest.includes('#EXTM3U')) {
+            const m4sUrl = extractM4sUrl(manifest, videoId);
+            if (m4sUrl) {
+                await downloadViaBackground(m4sUrl, videoId, btn);
+                return;
+            }
+        }
     } catch {
-        // Fallback: direct m4s URL
-        await tryFallbackDownload(videoId, btn);
+        // m3u8 failed, try next strategy
     }
-}
 
-async function tryFallbackDownload(videoId, btn) {
+    // Strategy 3: Direct m4s URL (last resort)
     try {
         const capitalizedId = videoId.charAt(0).toUpperCase() + videoId.slice(1);
         const directUrl = `https://media.redgifs.com/${capitalizedId}.m4s`;
@@ -239,6 +252,49 @@ async function tryFallbackDownload(videoId, btn) {
         resetButton(btn);
     }
 }
+
+// ============================================
+// Redgifs API v2 — Direct URL resolver
+// ============================================
+let cachedToken = null;
+let tokenExpiry = 0;
+
+async function getRedgifsToken() {
+    // Return cached token if still valid (refresh 5 min before expiry)
+    if (cachedToken && Date.now() < tokenExpiry - 300000) {
+        return cachedToken;
+    }
+
+    const response = await fetch('https://api.redgifs.com/v2/auth/temporary');
+    if (!response.ok) throw new Error(`Auth failed: ${response.status}`);
+
+    const data = await response.json();
+    cachedToken = data.token;
+    // Tokens typically last ~24h, refresh after 23h
+    tokenExpiry = Date.now() + 23 * 60 * 60 * 1000;
+    return cachedToken;
+}
+
+async function getDirectVideoUrl(videoId) {
+    const token = await getRedgifsToken();
+
+    const response = await fetch(`https://api.redgifs.com/v2/gifs/${videoId}`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (!response.ok) throw new Error(`API failed: ${response.status}`);
+
+    const data = await response.json();
+    const urls = data?.gif?.urls;
+
+    if (!urls) throw new Error('No URLs in response');
+
+    // Prefer HD, fall back to SD
+    return urls.hd || urls.sd || null;
+}
+
 
 function downloadViaBackground(url, videoId, btn) {
     return new Promise((resolve) => {
