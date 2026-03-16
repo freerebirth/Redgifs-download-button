@@ -134,6 +134,13 @@ function showUpdateNotification(newVersion, updateUrl) {
 // ============================================
 // Video ID Extraction
 // ============================================
+function sanitizeVideoId(id) {
+    if (!id) return id;
+    return id
+        .replace(/\.(mp4|m4s|webm|webp|jpg|jpeg|png|gif)$/i, '')
+        .replace(/-(silent|mobile|large|small|poster)$/i, '');
+}
+
 function getVideoIdFromContainer(container) {
     // Walk up to GifPreviewV2 if we're inside a player
     if (container.classList && !container.classList.contains('GifPreviewV2')) {
@@ -143,20 +150,20 @@ function getVideoIdFromContainer(container) {
 
     // 1. Container ID (most reliable)
     if (container.id && container.id.startsWith('gif_')) {
-        return container.id.replace('gif_', '');
+        return sanitizeVideoId(container.id.replace('gif_', ''));
     }
 
     // 2. Video poster URL
     const video = container.querySelector('video');
     if (video?.poster) {
         const posterMatch = video.poster.match(/\/([^/]+)-mobile\.jpg$/);
-        if (posterMatch?.[1]) return posterMatch[1];
+        if (posterMatch?.[1]) return sanitizeVideoId(posterMatch[1]);
     }
 
     // 3. Page URL for /watch/ pages
     if (window.location.pathname.includes('/watch/')) {
         const urlMatch = window.location.pathname.match(/\/watch\/([^/]+)/);
-        if (urlMatch?.[1]) return urlMatch[1];
+        if (urlMatch?.[1]) return sanitizeVideoId(urlMatch[1]);
     }
 
     // 4. Meta tags
@@ -165,7 +172,7 @@ function getVideoIdFromContainer(container) {
         const content = meta.getAttribute('content');
         if (content) {
             const metaMatch = content.match(/\/([^/]+)(?:\/hd|$)/);
-            if (metaMatch?.[1]) return metaMatch[1];
+            if (metaMatch?.[1]) return sanitizeVideoId(metaMatch[1]);
         }
     }
 
@@ -173,7 +180,7 @@ function getVideoIdFromContainer(container) {
     const dataElements = container.querySelectorAll('[data-id], [data-gif-id]');
     for (const el of dataElements) {
         const dataId = el.getAttribute('data-id') || el.getAttribute('data-gif-id');
-        if (dataId) return dataId;
+        if (dataId) return sanitizeVideoId(dataId);
     }
 
     // 6. Image alt text
@@ -182,7 +189,7 @@ function getVideoIdFromContainer(container) {
         const alt = img.getAttribute('alt');
         if (alt?.startsWith('Poster for ')) {
             const id = alt.replace('Poster for ', '');
-            if (id && !id.includes(' ')) return id;
+            if (id && !id.includes(' ')) return sanitizeVideoId(id);
         }
     }
 
