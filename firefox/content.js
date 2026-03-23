@@ -17,15 +17,21 @@ const UPDATE_CHECK_DELAY_MS = 5000;
 // --- State ---
 const processedPlayers = new WeakSet();
 const downloadHistory = new Set();
+let adSkipperEnabled = false;
+const AD_MODULE_TYPES = ['live-cam', 'trending-creators', 'only-fans', 'trending-niches', 'niche-explorer', 'boost'];
 
 // ============================================
-// Download History
+// Download History & Settings
 // ============================================
-function loadDownloadHistory() {
-    browser.storage.local.get('downloadHistory').then((result) => {
+function loadSettings() {
+    browser.storage.local.get(['downloadHistory', 'autoSkipAds']).then((result) => {
         if (result.downloadHistory) {
             result.downloadHistory.forEach(id => downloadHistory.add(id));
         }
+        
+        adSkipperEnabled = result.autoSkipAds || false;
+        applyAdBlocker(adSkipperEnabled);
+
         // Mark any already-injected buttons
         document.querySelectorAll('.redgifs-download-btn-wrapper').forEach(wrapper => {
             const containerId = wrapper.dataset.containerId;
@@ -83,6 +89,42 @@ class RetryManager {
 }
 
 const retryManager = new RetryManager();
+
+// ============================================
+// Ad Blocker
+// ============================================
+browser.storage.onChanged.addListener((changes, namespace) => {
+    if (changes.autoSkipAds !== undefined) {
+        adSkipperEnabled = changes.autoSkipAds.newValue;
+        applyAdBlocker(adSkipperEnabled);
+    }
+});
+
+function applyAdBlocker(enabled) {
+    const STYLE_ID = 'rgdl-adblocker-style';
+    const existing = document.getElementById(STYLE_ID);
+    if (existing) existing.remove();
+    if (!enabled) return;
+
+    // Layer 1: Known feed module panels (data-feed-module-type attribute)
+    const moduleSelectors = AD_MODULE_TYPES.map(t => `[data-feed-module-type="${t}"]`);
+
+    // Layer 2: Streamate live-cam video cards disguised as regular feed videos
+    // Selectors confirmed via live DOM inspection of redgifs.com
+    const liveCamSelectors = [
+        '[data-videoads="adsVideo"]',          // Streamate ad video container
+        '[class*="_StreamateCamera_"]',         // Streamate React component
+        '[class*="_ctaBubble_"]',               // "Join LIVE" overlay bubble
+        '[class*="_joinBtn_"]',                 // "Join LIVE" button
+        '[aria-label^="Join "][aria-label$=" live"]', // Accessibility label
+    ];
+
+    const css = [...moduleSelectors, ...liveCamSelectors].join(', ');
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `${css} { visibility: hidden !important; max-height: 0px !important; overflow: hidden !important; pointer-events: none !important; }`;
+    document.head.appendChild(style);
+}
 
 // ============================================
 // Button State Management
@@ -249,7 +291,16 @@ async function handleDownload(event) {
 
     if (!container) return;
 
-    const videoId = getVideoIdFromContainer(container);
+    // On /watch/ pages the player container is reused across next/prev navigation.
+    // The current URL is always the ground truth for which gif is displayed,
+    // so we check it first before falling back to DOM-based detection.
+    let videoId = null;
+    if (window.location.pathname.includes('/watch/')) {
+        const urlMatch = window.location.pathname.match(/\/watch\/([^/?#]+)/);
+        if (urlMatch?.[1]) videoId = sanitizeVideoId(urlMatch[1]);
+    }
+    if (!videoId) videoId = getVideoIdFromContainer(container);
+
     if (!videoId) {
         setButtonState(btn, 'error', '❌ No video ID');
         resetButton(btn);
@@ -621,16 +672,47 @@ function arrayBufferToBase64(buffer) {
 }
 
 // ============================================
+// Watch-page URL change handler
+// Resets download button label when user navigates to next/prev gif
+// ============================================
+function initWatchPageNavigationWatcher() {
+    if (!window.location.pathname.includes('/watch/')) return;
+
+    const resetWatchButton = () => {
+        if (!window.location.pathname.includes('/watch/')) return;
+        document.querySelectorAll('.redgifs-download-btn').forEach(btn => {
+            if (!btn.classList.contains('downloading')) {
+                setButtonState(btn, null, '⬇️ Download');
+                btn.style.pointerEvents = 'auto';
+            }
+        });
+    };
+
+    // Intercept history.pushState so we catch SPA navigations
+    const originalPushState = history.pushState.bind(history);
+    history.pushState = function (...args) {
+        originalPushState(...args);
+        resetWatchButton();
+    };
+
+    // popstate handles browser back/forward
+    window.addEventListener('popstate', resetWatchButton);
+}
+
+// ============================================
 // Initialization
 // ============================================
-// Load download history
-loadDownloadHistory();
+// Load settings and download history
+loadSettings();
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initObservers);
 } else {
     initObservers();
 }
+
+// Watch-page: reset button on next/prev navigation
+initWatchPageNavigationWatcher();
 
 // Check for updates after a delay
 setTimeout(checkForUpdates, UPDATE_CHECK_DELAY_MS);
