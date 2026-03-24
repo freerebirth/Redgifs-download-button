@@ -49,8 +49,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ============================================
 function handleDirectDownload(url, filename, sendResponse) {
     chrome.storage.local.get(['downloadFolder'], (result) => {
-        const folder = result.downloadFolder || DEFAULT_DOWNLOAD_FOLDER;
-        const finalFilename = folder + filename;
+        const folder = result.downloadFolder ?? DEFAULT_DOWNLOAD_FOLDER;
+        const finalFilename = folder ? folder + filename : filename;
 
         chrome.downloads.download({
             url,
@@ -321,8 +321,8 @@ async function handleFetchAndDownload(url, filename, sendResponse) {
         const blobUrl = URL.createObjectURL(blob);
 
         chrome.storage.local.get(['downloadFolder'], (result) => {
-            const folder = result.downloadFolder || DEFAULT_DOWNLOAD_FOLDER;
-            const finalFilename = folder + filename;
+            const folder = result.downloadFolder ?? DEFAULT_DOWNLOAD_FOLDER;
+            const finalFilename = folder ? folder + filename : filename;
 
             chrome.downloads.download({
                 url: blobUrl,
