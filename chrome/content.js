@@ -17,6 +17,9 @@ const UPDATE_CHECK_DELAY_MS = 5000;
 // --- State ---
 const processedPlayers = new WeakSet();
 const downloadHistory = new Set();
+// Tracks in-flight downloads by videoId — prevents duplicate downloads when
+// React remounts the player element and re-injects multiple button instances.
+const activeDownloads = new Set();
 let adSkipperEnabled = false;
 const AD_MODULE_TYPES = ['live-cam', 'trending-creators', 'only-fans', 'trending-niches', 'niche-explorer', 'boost'];
 
@@ -312,48 +315,58 @@ async function handleDownload(event) {
         return;
     }
 
+    // Deduplication guard: prevent multiple button instances (created by React
+    // remounting the player) from each firing a separate download.
+    if (activeDownloads.has(videoId)) return;
+    activeDownloads.add(videoId);
+
     setButtonState(btn, 'downloading', '⏳ Fetching...');
     btn.style.pointerEvents = 'none';
 
-    // Strategy 1: Redgifs API v2 — get direct MP4 URL (works for all videos)
     try {
-        const directUrl = await getDirectVideoUrl(videoId);
-        if (directUrl) {
-            await downloadViaBackground(directUrl, videoId, btn);
-            recordDownload(videoId);
-            return;
-        }
-    } catch {
-        // API failed, try next strategy
-    }
-
-    // Strategy 2: HLS/m3u8 manifest (newer videos)
-    try {
-        const apiUrl = `https://api.redgifs.com/v2/gifs/${videoId}/hd.m3u8`;
-        const manifest = await fetchM3u8(apiUrl);
-
-        // Verify it's actually a manifest, not an XML error
-        if (manifest && manifest.includes('#EXTM3U')) {
-            const m4sUrl = extractM4sUrl(manifest, videoId);
-            if (m4sUrl) {
-                await downloadViaBackground(m4sUrl, videoId, btn);
+        // Strategy 1: Redgifs API v2 — get direct MP4 URL (works for all videos)
+        try {
+            const directUrl = await getDirectVideoUrl(videoId);
+            if (directUrl) {
+                await downloadViaBackground(directUrl, videoId, btn);
                 recordDownload(videoId);
                 return;
             }
+        } catch {
+            // API failed, try next strategy
         }
-    } catch {
-        // m3u8 failed, try next strategy
-    }
 
-    // Strategy 3: Direct m4s URL (last resort)
-    try {
-        const capitalizedId = videoId.charAt(0).toUpperCase() + videoId.slice(1);
-        const directUrl = `https://media.redgifs.com/${capitalizedId}.m4s`;
-        await downloadViaBackground(directUrl, videoId, btn);
-        recordDownload(videoId);
-    } catch {
-        setButtonState(btn, 'error', '❌ Failed');
-        resetButton(btn);
+        // Strategy 2: HLS/m3u8 manifest (newer videos)
+        try {
+            const apiUrl = `https://api.redgifs.com/v2/gifs/${videoId}/hd.m3u8`;
+            const manifest = await fetchM3u8(apiUrl);
+
+            // Verify it's actually a manifest, not an XML error
+            if (manifest && manifest.includes('#EXTM3U')) {
+                const m4sUrl = extractM4sUrl(manifest, videoId);
+                if (m4sUrl) {
+                    await downloadViaBackground(m4sUrl, videoId, btn);
+                    recordDownload(videoId);
+                    return;
+                }
+            }
+        } catch {
+            // m3u8 failed, try next strategy
+        }
+
+        // Strategy 3: Direct m4s URL (last resort)
+        try {
+            const capitalizedId = videoId.charAt(0).toUpperCase() + videoId.slice(1);
+            const directUrl = `https://media.redgifs.com/${capitalizedId}.m4s`;
+            await downloadViaBackground(directUrl, videoId, btn);
+            recordDownload(videoId);
+        } catch {
+            setButtonState(btn, 'error', '❌ Failed');
+            resetButton(btn);
+        }
+    } finally {
+        // Always release the lock so a future click on another gif works
+        activeDownloads.delete(videoId);
     }
 }
 
@@ -407,13 +420,15 @@ function downloadViaBackground(url, videoId, btn) {
         try {
             let responded = false;
 
-            // Timeout: if chrome.downloads doesn't respond in 5s, use fallback
+            // Timeout: fallback for Kiwi/Android where chrome.downloads never
+            // calls back. 30s gives the MV3 service worker time to cold-start on
+            // desktop without triggering a false duplicate download.
             const timeout = setTimeout(() => {
                 if (!responded) {
                     responded = true;
                     downloadViaBlobFallback(url, filename, btn).then(resolve);
                 }
-            }, 5000);
+            }, 30000);
 
             chrome.runtime.sendMessage({
                 type: 'DOWNLOAD_DIRECT',
@@ -670,6 +685,11 @@ function initObservers() {
                 wrapper.remove();
                 return;
             }
+            // Never remove a wrapper whose button is actively downloading —
+            // the container ID may be temporarily absent during SPA transitions.
+            const btn = wrapper.querySelector('.redgifs-download-btn');
+            if (btn?.classList.contains('downloading')) return;
+
             const container = document.getElementById(containerId);
             if (!container || !document.body.contains(container)) {
                 wrapper.remove();
