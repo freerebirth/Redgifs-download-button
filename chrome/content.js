@@ -17,18 +17,28 @@ const UPDATE_CHECK_DELAY_MS = 5000;
 // --- State ---
 const processedPlayers = new WeakSet();
 const downloadHistory = new Set();
+// Tracks in-flight downloads by videoId — prevents duplicate downloads when
+// React remounts the player element and re-injects multiple button instances.
+const activeDownloads = new Set();
+let adSkipperEnabled = false;
+const AD_MODULE_TYPES = ['live-cam', 'trending-creators', 'only-fans', 'trending-niches', 'niche-explorer', 'boost'];
 
 // ============================================
-// Download History
+// Download History & Settings
 // ============================================
-function loadDownloadHistory() {
-    chrome.storage.local.get(['downloadHistory'], (result) => {
+function loadSettings() {
+    chrome.storage.local.get(['downloadHistory', 'autoSkipAds'], (result) => {
         if (result.downloadHistory) {
             result.downloadHistory.forEach(id => downloadHistory.add(id));
         }
+        
+        adSkipperEnabled = result.autoSkipAds || false;
+        applyAdBlocker(adSkipperEnabled);
+
         // Mark any already-injected buttons
         document.querySelectorAll('.redgifs-download-btn-wrapper').forEach(wrapper => {
             const containerId = wrapper.dataset.containerId;
+
             if (!containerId) return;
             const container = document.getElementById(containerId);
             if (!container) return;
@@ -83,6 +93,43 @@ class RetryManager {
 }
 
 const retryManager = new RetryManager();
+
+// ============================================
+// Ad Blocker
+// ============================================
+chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local' && changes.autoSkipAds !== undefined) {
+        adSkipperEnabled = changes.autoSkipAds.newValue;
+        applyAdBlocker(adSkipperEnabled);
+    }
+});
+
+function applyAdBlocker(enabled) {
+    const STYLE_ID = 'rgdl-adblocker-style';
+    const existing = document.getElementById(STYLE_ID);
+    if (existing) existing.remove();
+    if (!enabled) return;
+
+    // Layer 1: Known feed module panels (data-feed-module-type attribute)
+    const moduleSelectors = AD_MODULE_TYPES.map(t => `[data-feed-module-type="${t}"]`);
+
+    // Layer 2: Streamate live-cam video cards disguised as regular feed videos
+    // Selectors confirmed via live DOM inspection of redgifs.com
+    const liveCamSelectors = [
+        '[data-videoads="adsVideo"]',          // Streamate ad video container
+        '[class*="_StreamateCamera_"]',         // Streamate React component
+        '[class*="_ctaBubble_"]',               // "Join LIVE" overlay bubble
+        '[class*="_joinBtn_"]',                 // "Join LIVE" button
+        '[aria-label^="Join "][aria-label$=" live"]', // Accessibility label
+    ];
+
+    const css = [...moduleSelectors, ...liveCamSelectors].join(', ');
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    // Use visibility+max-height instead of display:none to avoid breaking the React virtual scroller
+    style.textContent = `${css} { visibility: hidden !important; max-height: 0px !important; overflow: hidden !important; pointer-events: none !important; }`;
+    document.head.appendChild(style);
+}
 
 // ============================================
 // Button State Management
@@ -252,55 +299,74 @@ async function handleDownload(event) {
 
     if (!container) return;
 
-    const videoId = getVideoIdFromContainer(container);
+    // On /watch/ pages the player container is reused across next/prev navigation.
+    // The current URL is always the ground truth for which gif is displayed,
+    // so we check it first before falling back to DOM-based detection.
+    let videoId = null;
+    if (window.location.pathname.includes('/watch/')) {
+        const urlMatch = window.location.pathname.match(/\/watch\/([^/?#]+)/);
+        if (urlMatch?.[1]) videoId = sanitizeVideoId(urlMatch[1]);
+    }
+    if (!videoId) videoId = getVideoIdFromContainer(container);
+
     if (!videoId) {
         setButtonState(btn, 'error', '❌ No video ID');
         resetButton(btn);
         return;
     }
 
+    // Deduplication guard: prevent multiple button instances (created by React
+    // remounting the player) from each firing a separate download.
+    if (activeDownloads.has(videoId)) return;
+    activeDownloads.add(videoId);
+
     setButtonState(btn, 'downloading', '⏳ Fetching...');
     btn.style.pointerEvents = 'none';
 
-    // Strategy 1: Redgifs API v2 — get direct MP4 URL (works for all videos)
     try {
-        const directUrl = await getDirectVideoUrl(videoId);
-        if (directUrl) {
-            await downloadViaBackground(directUrl, videoId, btn);
-            recordDownload(videoId);
-            return;
-        }
-    } catch {
-        // API failed, try next strategy
-    }
-
-    // Strategy 2: HLS/m3u8 manifest (newer videos)
-    try {
-        const apiUrl = `https://api.redgifs.com/v2/gifs/${videoId}/hd.m3u8`;
-        const manifest = await fetchM3u8(apiUrl);
-
-        // Verify it's actually a manifest, not an XML error
-        if (manifest && manifest.includes('#EXTM3U')) {
-            const m4sUrl = extractM4sUrl(manifest, videoId);
-            if (m4sUrl) {
-                await downloadViaBackground(m4sUrl, videoId, btn);
+        // Strategy 1: Redgifs API v2 — get direct MP4 URL (works for all videos)
+        try {
+            const directUrl = await getDirectVideoUrl(videoId);
+            if (directUrl) {
+                await downloadViaBackground(directUrl, videoId, btn);
                 recordDownload(videoId);
                 return;
             }
+        } catch {
+            // API failed, try next strategy
         }
-    } catch {
-        // m3u8 failed, try next strategy
-    }
 
-    // Strategy 3: Direct m4s URL (last resort)
-    try {
-        const capitalizedId = videoId.charAt(0).toUpperCase() + videoId.slice(1);
-        const directUrl = `https://media.redgifs.com/${capitalizedId}.m4s`;
-        await downloadViaBackground(directUrl, videoId, btn);
-        recordDownload(videoId);
-    } catch {
-        setButtonState(btn, 'error', '❌ Failed');
-        resetButton(btn);
+        // Strategy 2: HLS/m3u8 manifest (newer videos)
+        try {
+            const apiUrl = `https://api.redgifs.com/v2/gifs/${videoId}/hd.m3u8`;
+            const manifest = await fetchM3u8(apiUrl);
+
+            // Verify it's actually a manifest, not an XML error
+            if (manifest && manifest.includes('#EXTM3U')) {
+                const m4sUrl = extractM4sUrl(manifest, videoId);
+                if (m4sUrl) {
+                    await downloadViaBackground(m4sUrl, videoId, btn);
+                    recordDownload(videoId);
+                    return;
+                }
+            }
+        } catch {
+            // m3u8 failed, try next strategy
+        }
+
+        // Strategy 3: Direct m4s URL (last resort)
+        try {
+            const capitalizedId = videoId.charAt(0).toUpperCase() + videoId.slice(1);
+            const directUrl = `https://media.redgifs.com/${capitalizedId}.m4s`;
+            await downloadViaBackground(directUrl, videoId, btn);
+            recordDownload(videoId);
+        } catch {
+            setButtonState(btn, 'error', '❌ Failed');
+            resetButton(btn);
+        }
+    } finally {
+        // Always release the lock so a future click on another gif works
+        activeDownloads.delete(videoId);
     }
 }
 
@@ -354,13 +420,15 @@ function downloadViaBackground(url, videoId, btn) {
         try {
             let responded = false;
 
-            // Timeout: if chrome.downloads doesn't respond in 5s, use fallback
+            // Timeout: fallback for Kiwi/Android where chrome.downloads never
+            // calls back. 30s gives the MV3 service worker time to cold-start on
+            // desktop without triggering a false duplicate download.
             const timeout = setTimeout(() => {
                 if (!responded) {
                     responded = true;
                     downloadViaBlobFallback(url, filename, btn).then(resolve);
                 }
-            }, 5000);
+            }, 30000);
 
             chrome.runtime.sendMessage({
                 type: 'DOWNLOAD_DIRECT',
@@ -603,7 +671,6 @@ function initObservers() {
 
         for (const node of nodes) {
             processElement(node);
-            // Also check for nested elements
             if (node.querySelectorAll) {
                 node.querySelectorAll('.GifPreviewV2, .TapTracker, .PlayerV2, video')
                     .forEach(processElement);
@@ -618,6 +685,11 @@ function initObservers() {
                 wrapper.remove();
                 return;
             }
+            // Never remove a wrapper whose button is actively downloading —
+            // the container ID may be temporarily absent during SPA transitions.
+            const btn = wrapper.querySelector('.redgifs-download-btn');
+            if (btn?.classList.contains('downloading')) return;
+
             const container = document.getElementById(containerId);
             if (!container || !document.body.contains(container)) {
                 wrapper.remove();
@@ -728,16 +800,48 @@ function arrayBufferToBase64(buffer) {
 }
 
 // ============================================
+// Watch-page URL change handler
+// Resets download button label when user navigates to next/prev gif
+// ============================================
+function initWatchPageNavigationWatcher() {
+    if (!window.location.pathname.includes('/watch/')) return;
+
+    const resetWatchButton = () => {
+        // Only needed on /watch/ pages
+        if (!window.location.pathname.includes('/watch/')) return;
+        document.querySelectorAll('.redgifs-download-btn').forEach(btn => {
+            if (!btn.classList.contains('downloading')) {
+                setButtonState(btn, null, '⬇️ Download');
+                btn.style.pointerEvents = 'auto';
+            }
+        });
+    };
+
+    // Intercept history.pushState so we catch SPA navigations
+    const originalPushState = history.pushState.bind(history);
+    history.pushState = function (...args) {
+        originalPushState(...args);
+        resetWatchButton();
+    };
+
+    // popstate handles browser back/forward
+    window.addEventListener('popstate', resetWatchButton);
+}
+
+// ============================================
 // Initialization
 // ============================================
-// Load download history
-loadDownloadHistory();
+// Load settings and download history
+loadSettings();
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initObservers);
 } else {
     initObservers();
 }
+
+// Watch-page: reset button on next/prev navigation
+initWatchPageNavigationWatcher();
 
 // Check for updates after a delay
 setTimeout(checkForUpdates, UPDATE_CHECK_DELAY_MS);
