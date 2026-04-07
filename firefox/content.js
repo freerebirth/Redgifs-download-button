@@ -17,15 +17,24 @@ const UPDATE_CHECK_DELAY_MS = 5000;
 // --- State ---
 const processedPlayers = new WeakSet();
 const downloadHistory = new Set();
+// Tracks in-flight downloads by videoId — prevents duplicate downloads when
+// React remounts the player element and re-injects multiple button instances.
+const activeDownloads = new Set();
+let adSkipperEnabled = false;
+const AD_MODULE_TYPES = ['live-cam', 'trending-creators', 'only-fans', 'trending-niches', 'niche-explorer', 'boost'];
 
 // ============================================
-// Download History
+// Download History & Settings
 // ============================================
-function loadDownloadHistory() {
-    browser.storage.local.get('downloadHistory').then((result) => {
+function loadSettings() {
+    browser.storage.local.get(['downloadHistory', 'autoSkipAds']).then((result) => {
         if (result.downloadHistory) {
             result.downloadHistory.forEach(id => downloadHistory.add(id));
         }
+        
+        adSkipperEnabled = result.autoSkipAds || false;
+        applyAdBlocker(adSkipperEnabled);
+
         // Mark any already-injected buttons
         document.querySelectorAll('.redgifs-download-btn-wrapper').forEach(wrapper => {
             const containerId = wrapper.dataset.containerId;
@@ -83,6 +92,42 @@ class RetryManager {
 }
 
 const retryManager = new RetryManager();
+
+// ============================================
+// Ad Blocker
+// ============================================
+browser.storage.onChanged.addListener((changes, namespace) => {
+    if (changes.autoSkipAds !== undefined) {
+        adSkipperEnabled = changes.autoSkipAds.newValue;
+        applyAdBlocker(adSkipperEnabled);
+    }
+});
+
+function applyAdBlocker(enabled) {
+    const STYLE_ID = 'rgdl-adblocker-style';
+    const existing = document.getElementById(STYLE_ID);
+    if (existing) existing.remove();
+    if (!enabled) return;
+
+    // Layer 1: Known feed module panels (data-feed-module-type attribute)
+    const moduleSelectors = AD_MODULE_TYPES.map(t => `[data-feed-module-type="${t}"]`);
+
+    // Layer 2: Streamate live-cam video cards disguised as regular feed videos
+    // Selectors confirmed via live DOM inspection of redgifs.com
+    const liveCamSelectors = [
+        '[data-videoads="adsVideo"]',          // Streamate ad video container
+        '[class*="_StreamateCamera_"]',         // Streamate React component
+        '[class*="_ctaBubble_"]',               // "Join LIVE" overlay bubble
+        '[class*="_joinBtn_"]',                 // "Join LIVE" button
+        '[aria-label^="Join "][aria-label$=" live"]', // Accessibility label
+    ];
+
+    const css = [...moduleSelectors, ...liveCamSelectors].join(', ');
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `${css} { visibility: hidden !important; max-height: 0px !important; overflow: hidden !important; pointer-events: none !important; }`;
+    document.head.appendChild(style);
+}
 
 // ============================================
 // Button State Management
@@ -180,13 +225,25 @@ function sanitizeVideoId(id) {
 }
 
 function getVideoIdFromContainer(container) {
-    // Walk up to GifPreviewV2 if we're inside a player
+    // 0. data-feed-item-id — present on every video card across all page types
+    //    Walk up first, then walk into children.
+    const feedItemEl = container.closest('[data-feed-item-id]') ||
+                       container.querySelector('[data-feed-item-id]');
+    if (feedItemEl) {
+        const id = feedItemEl.getAttribute('data-feed-item-id');
+        if (id) return sanitizeVideoId(id);
+    }
+    if (container.dataset && container.dataset.feedItemId) {
+        return sanitizeVideoId(container.dataset.feedItemId);
+    }
+
+    // Walk up to GifPreviewV2 if we're inside a player (legacy)
     if (container.classList && !container.classList.contains('GifPreviewV2')) {
         const gifPreview = container.closest('.GifPreviewV2');
         if (gifPreview) container = gifPreview;
     }
 
-    // 1. Container ID (most reliable)
+    // 1. Container ID (legacy gif_ prefix)
     if (container.id && container.id.startsWith('gif_')) {
         return sanitizeVideoId(container.id.replace('gif_', ''));
     }
@@ -214,7 +271,7 @@ function getVideoIdFromContainer(container) {
         }
     }
 
-    // 5. Data attributes
+    // 5. Data attributes (legacy)
     const dataElements = container.querySelectorAll('[data-id], [data-gif-id]');
     for (const el of dataElements) {
         const dataId = el.getAttribute('data-id') || el.getAttribute('data-gif-id');
@@ -245,59 +302,85 @@ async function handleDownload(event) {
     const containerId = wrapper?.dataset.containerId;
     const container = containerId
         ? document.getElementById(containerId)
-        : btn.closest('.GifPreviewV2');
+        : btn.closest('.tileItem, .Player, .TapTracker, .GifPreviewV2');
 
     if (!container) return;
 
-    const videoId = getVideoIdFromContainer(container);
+    // Priority order for video ID:
+    // 1. data-feed-item-id from container chain (most reliable — works on gallery, feed, watch)
+    // 2. /watch/ URL (ground truth for watch page SPA navigation)
+    // 3. DOM-based detection (legacy fallback)
+    let videoId = null;
+
+    const feedItemId = container.dataset.feedItemId
+        || container.closest('[data-feed-item-id]')?.dataset.feedItemId
+        || container.querySelector('[data-feed-item-id]')?.dataset.feedItemId;
+    if (feedItemId) videoId = sanitizeVideoId(feedItemId);
+
+    if (!videoId && window.location.pathname.includes('/watch/')) {
+        const urlMatch = window.location.pathname.match(/\/watch\/([^/?#]+)/);
+        if (urlMatch?.[1]) videoId = sanitizeVideoId(urlMatch[1]);
+    }
+    if (!videoId) videoId = getVideoIdFromContainer(container);
+
     if (!videoId) {
         setButtonState(btn, 'error', '❌ No video ID');
         resetButton(btn);
         return;
     }
 
+    // Deduplication guard: prevent multiple button instances (created by React
+    // remounting the player) from each firing a separate download.
+    if (activeDownloads.has(videoId)) return;
+    activeDownloads.add(videoId);
+
     setButtonState(btn, 'downloading', '⏳ Fetching...');
     btn.style.pointerEvents = 'none';
 
-    // Strategy 1: Redgifs API v2 — get direct MP4 URL (works for all videos)
     try {
-        const directUrl = await getDirectVideoUrl(videoId);
-        if (directUrl) {
-            await downloadViaBackground(directUrl, videoId, btn);
-            recordDownload(videoId);
-            return;
-        }
-    } catch {
-        // API failed, try next strategy
-    }
-
-    // Strategy 2: HLS/m3u8 manifest (newer videos)
-    try {
-        const apiUrl = `https://api.redgifs.com/v2/gifs/${videoId}/hd.m3u8`;
-        const manifest = await fetchM3u8(apiUrl);
-
-        // Verify it's actually a manifest, not an XML error
-        if (manifest && manifest.includes('#EXTM3U')) {
-            const m4sUrl = extractM4sUrl(manifest, videoId);
-            if (m4sUrl) {
-                await downloadViaBackground(m4sUrl, videoId, btn);
+        // Strategy 1: Redgifs API v2 — get direct MP4 URL (works for all videos)
+        try {
+            const directUrl = await getDirectVideoUrl(videoId);
+            if (directUrl) {
+                await downloadViaBackground(directUrl, videoId, btn);
                 recordDownload(videoId);
                 return;
             }
+        } catch {
+            // API failed, try next strategy
         }
-    } catch {
-        // m3u8 failed, try next strategy
-    }
 
-    // Strategy 3: Direct m4s URL (last resort)
-    try {
-        const capitalizedId = videoId.charAt(0).toUpperCase() + videoId.slice(1);
-        const directUrl = `https://media.redgifs.com/${capitalizedId}.m4s`;
-        await downloadViaBackground(directUrl, videoId, btn);
-        recordDownload(videoId);
-    } catch {
-        setButtonState(btn, 'error', '❌ Failed');
-        resetButton(btn);
+        // Strategy 2: HLS/m3u8 manifest (newer videos)
+        try {
+            const apiUrl = `https://api.redgifs.com/v2/gifs/${videoId}/hd.m3u8`;
+            const manifest = await fetchM3u8(apiUrl);
+
+            // Verify it's actually a manifest, not an XML error
+            if (manifest && manifest.includes('#EXTM3U')) {
+                const m4sUrl = extractM4sUrl(manifest, videoId);
+                if (m4sUrl) {
+                    await downloadViaBackground(m4sUrl, videoId, btn);
+                    recordDownload(videoId);
+                    return;
+                }
+            }
+        } catch {
+            // m3u8 failed, try next strategy
+        }
+
+        // Strategy 3: Direct m4s URL (last resort)
+        try {
+            const capitalizedId = videoId.charAt(0).toUpperCase() + videoId.slice(1);
+            const directUrl = `https://media.redgifs.com/${capitalizedId}.m4s`;
+            await downloadViaBackground(directUrl, videoId, btn);
+            recordDownload(videoId);
+        } catch {
+            setButtonState(btn, 'error', '❌ Failed');
+            resetButton(btn);
+        }
+    } finally {
+        // Always release the lock so a future click on another gif works
+        activeDownloads.delete(videoId);
     }
 }
 
@@ -416,22 +499,33 @@ async function fetchM3u8(url) {
 function addDownloadButton(container) {
     if (!container) return;
 
-    // Generate a stable ID for tracking
-    if (!container.id) {
-        container.id = 'redgifs-container-' + Math.random().toString(36).substring(2, 9);
+    // Use data-feed-item-id as the stable dedup key (survives React remounts).
+    const feedItemId = container.dataset.feedItemId
+        || container.closest('[data-feed-item-id]')?.dataset.feedItemId;
+    const stableKey = feedItemId || container.id;
+
+    // Ensure the container has a DOM id so we can look it up from the wrapper.
+    if (!container.id || container.id.startsWith('redgifs-container-')) {
+        container.id = feedItemId
+            ? 'rgdl-' + feedItemId
+            : 'redgifs-container-' + Math.random().toString(36).substring(2, 9);
     }
 
-    // Skip if already has a button
+    // Skip if already has a button inside this container
     if (container.querySelector('.redgifs-download-btn-wrapper')) return;
 
-    const existingWrapper = document.querySelector(
-        `.redgifs-download-btn-wrapper[data-container-id="${container.id}"]`
-    );
-    if (existingWrapper) return;
+    // Skip if a wrapper already points at the same stable key (survives React remounts)
+    if (stableKey) {
+        const existingWrapper = document.querySelector(
+            `.redgifs-download-btn-wrapper[data-stable-key="${CSS.escape(stableKey)}"]`
+        );
+        if (existingWrapper && document.body.contains(existingWrapper)) return;
+    }
 
     const wrapper = document.createElement('div');
     wrapper.className = 'redgifs-download-btn-wrapper';
     wrapper.dataset.containerId = container.id;
+    if (stableKey) wrapper.dataset.stableKey = stableKey;
 
     const btn = document.createElement('button');
     btn.className = 'redgifs-download-btn';
@@ -459,7 +553,29 @@ function addDownloadButton(container) {
 function processElement(element) {
     if (!element || !element.classList) return;
 
-    // Direct match on player containers
+    // ── New selectors (current redgifs.com DOM) ──────────────────────────────
+
+    // Gallery grid item (.tileItem with data-feed-item-id) — user profile pages
+    if (element.classList.contains('tileItem')) {
+        if (!processedPlayers.has(element)) {
+            processedPlayers.add(element);
+            addDownloadButton(element);
+        }
+        return;
+    }
+
+    // Feed/watch player container (.Player) — home feed, search, watch pages
+    if (element.classList.contains('Player')) {
+        if (!processedPlayers.has(element)) {
+            processedPlayers.add(element);
+            addDownloadButton(element);
+        }
+        return;
+    }
+
+    // ── Legacy selectors (kept for compatibility) ────────────────────────────
+
+    // TapTracker / PlayerV2 — older redgifs DOM
     if (element.classList.contains('TapTracker') || element.classList.contains('PlayerV2')) {
         if (!processedPlayers.has(element)) {
             processedPlayers.add(element);
@@ -470,7 +586,7 @@ function processElement(element) {
 
     // GifPreviewV2 — look for inner player
     if (element.classList.contains('GifPreviewV2')) {
-        const player = element.querySelector('.TapTracker, .PlayerV2');
+        const player = element.querySelector('.TapTracker, .PlayerV2, .Player');
         const target = player || element;
         if (!processedPlayers.has(target)) {
             processedPlayers.add(target);
@@ -479,9 +595,11 @@ function processElement(element) {
         return;
     }
 
-    // Fallback for video elements
+    // Fallback for video elements — walk up to nearest known container
     if (element.tagName === 'VIDEO') {
-        const playerContainer = element.closest('.TapTracker, .PlayerV2, .GifPreviewV2');
+        const playerContainer = element.closest(
+            '.tileItem, .Player, .TapTracker, .PlayerV2, .GifPreviewV2'
+        );
         if (playerContainer && !processedPlayers.has(playerContainer)) {
             processedPlayers.add(playerContainer);
             addDownloadButton(playerContainer);
@@ -501,8 +619,9 @@ function initObservers() {
         for (const node of nodes) {
             processElement(node);
             if (node.querySelectorAll) {
-                node.querySelectorAll('.GifPreviewV2, .TapTracker, .PlayerV2, video')
-                    .forEach(processElement);
+                node.querySelectorAll(
+                    '.GifPreviewV2, .TapTracker, .PlayerV2, .tileItem, .Player, video'
+                ).forEach(processElement);
             }
         }
     };
@@ -514,6 +633,11 @@ function initObservers() {
                 wrapper.remove();
                 return;
             }
+            // Never remove a wrapper whose button is actively downloading —
+            // the container ID may be temporarily absent during SPA transitions.
+            const btn = wrapper.querySelector('.redgifs-download-btn');
+            if (btn?.classList.contains('downloading')) return;
+
             const container = document.getElementById(containerId);
             if (!container || !document.body.contains(container)) {
                 wrapper.remove();
@@ -548,9 +672,10 @@ function initObservers() {
         subtree: true
     });
 
-    // Initial scan
-    document.querySelectorAll('.GifPreviewV2, .TapTracker, .PlayerV2')
-        .forEach(processElement);
+    // Initial scan — covers all current and legacy container types
+    document.querySelectorAll(
+        '.GifPreviewV2, .TapTracker, .PlayerV2, .tileItem, .Player'
+    ).forEach(processElement);
 
     // Periodic cleanup for orphaned wrappers
     setInterval(cleanupOrphanedWrappers, CLEANUP_INTERVAL_MS);
@@ -621,16 +746,47 @@ function arrayBufferToBase64(buffer) {
 }
 
 // ============================================
+// Watch-page URL change handler
+// Resets download button label when user navigates to next/prev gif
+// ============================================
+function initWatchPageNavigationWatcher() {
+    if (!window.location.pathname.includes('/watch/')) return;
+
+    const resetWatchButton = () => {
+        if (!window.location.pathname.includes('/watch/')) return;
+        document.querySelectorAll('.redgifs-download-btn').forEach(btn => {
+            if (!btn.classList.contains('downloading')) {
+                setButtonState(btn, null, '⬇️ Download');
+                btn.style.pointerEvents = 'auto';
+            }
+        });
+    };
+
+    // Intercept history.pushState so we catch SPA navigations
+    const originalPushState = history.pushState.bind(history);
+    history.pushState = function (...args) {
+        originalPushState(...args);
+        resetWatchButton();
+    };
+
+    // popstate handles browser back/forward
+    window.addEventListener('popstate', resetWatchButton);
+}
+
+// ============================================
 // Initialization
 // ============================================
-// Load download history
-loadDownloadHistory();
+// Load settings and download history
+loadSettings();
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initObservers);
 } else {
     initObservers();
 }
+
+// Watch-page: reset button on next/prev navigation
+initWatchPageNavigationWatcher();
 
 // Check for updates after a delay
 setTimeout(checkForUpdates, UPDATE_CHECK_DELAY_MS);
