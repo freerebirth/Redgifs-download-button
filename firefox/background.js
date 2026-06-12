@@ -38,8 +38,8 @@ browser.runtime.onMessage.addListener((message, sender) => {
 // ============================================
 async function handleDirectDownload(url, filename) {
     const result = await browser.storage.local.get('downloadFolder');
-    const folder = result.downloadFolder || DEFAULT_DOWNLOAD_FOLDER;
-    const finalFilename = folder + filename;
+    const folder = result.downloadFolder ?? DEFAULT_DOWNLOAD_FOLDER;
+    const finalFilename = folder ? folder + filename : filename;
 
     try {
         const downloadId = await browser.downloads.download({
@@ -162,11 +162,12 @@ async function handleVideoProcessing(videoId, manifest, tabId) {
         const url = URL.createObjectURL(blob);
 
         const storageResult = await browser.storage.local.get('downloadFolder');
-        const folder = storageResult.downloadFolder || DEFAULT_DOWNLOAD_FOLDER;
+        const folder = storageResult.downloadFolder ?? DEFAULT_DOWNLOAD_FOLDER;
+        const dlFilename = folder ? `${folder}redgifs_${videoId}.mp4` : `redgifs_${videoId}.mp4`;
 
         await browser.downloads.download({
             url,
-            filename: `${folder}redgifs_${videoId}.mp4`,
+            filename: dlFilename,
             saveAs: false
         });
     } catch (error) {
