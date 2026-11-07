@@ -141,6 +141,11 @@ function setButtonState(btn, state, text) {
         btn.classList.add(state);
     }
     btn.textContent = text;
+    // Both halves share progress and cannot start competing downloads.
+    const wrapper = btn.closest('.redgifs-download-btn-wrapper');
+    wrapper?.querySelectorAll('.redgifs-download-btn').forEach(button => {
+        button.disabled = state === 'downloading' || state === 'success';
+    });
 }
 
 function resetButton(btn) {
@@ -302,10 +307,12 @@ function getVideoIdFromContainer(container) {
 // Download Logic
 // ============================================
 async function handleDownload(event) {
-    const btn = event.target.closest('.redgifs-download-btn');
-    if (!btn) return;
+    const actionBtn = event.target.closest('.redgifs-download-btn');
+    if (!actionBtn) return;
 
-    const wrapper = btn.closest('.redgifs-download-btn-wrapper');
+    const saveAs = actionBtn.classList.contains('redgifs-download-as-btn');
+    const wrapper = actionBtn.closest('.redgifs-download-btn-wrapper');
+    const btn = wrapper?.querySelector('.redgifs-download-btn') || actionBtn;
     const containerId = wrapper?.dataset.containerId;
     const container = containerId
         ? document.getElementById(containerId)
@@ -352,8 +359,9 @@ async function handleDownload(event) {
         try {
             const directUrl = await getDirectVideoUrl(videoId);
             if (directUrl) {
-                await downloadViaBackground(directUrl, videoId, btn);
-                recordDownload(videoId);
+                if (await downloadViaBackground(directUrl, videoId, btn, saveAs)) {
+                    recordDownload(videoId);
+                }
                 return;
             }
         } catch {
@@ -369,8 +377,9 @@ async function handleDownload(event) {
             if (manifest && manifest.includes('#EXTM3U')) {
                 const m4sUrl = extractM4sUrl(manifest, videoId);
                 if (m4sUrl) {
-                    await downloadViaBackground(m4sUrl, videoId, btn);
-                    recordDownload(videoId);
+                    if (await downloadViaBackground(m4sUrl, videoId, btn, saveAs)) {
+                        recordDownload(videoId);
+                    }
                     return;
                 }
             }
@@ -382,8 +391,9 @@ async function handleDownload(event) {
         try {
             const capitalizedId = videoId.charAt(0).toUpperCase() + videoId.slice(1);
             const directUrl = `https://media.redgifs.com/${capitalizedId}.m4s`;
-            await downloadViaBackground(directUrl, videoId, btn);
-            recordDownload(videoId);
+            if (await downloadViaBackground(directUrl, videoId, btn, saveAs)) {
+                recordDownload(videoId);
+            }
         } catch {
             setButtonState(btn, 'error', '❌ Failed');
             resetButton(btn);
@@ -436,66 +446,73 @@ async function getDirectVideoUrl(videoId) {
     return urls.hd || urls.sd || null;
 }
 
-function downloadViaBackground(url, videoId, btn) {
+function downloadViaBackground(url, videoId, btn, saveAs = false) {
     return new Promise((resolve) => {
-        setButtonState(btn, 'downloading', '⏳ Downloading...');
+        setButtonState(btn, 'downloading', '⏳ Saving...');
         const filename = `redgifs_${videoId}.mp4`;
 
         try {
-            let responded = false;
-
-            // Timeout: fallback for Kiwi/Android where chrome.downloads never
-            // calls back. 30s gives the MV3 service worker time to cold-start on
-            // desktop without triggering a false duplicate download.
-            const timeout = setTimeout(() => {
-                if (!responded) {
-                    responded = true;
-                    downloadViaBlobFallback(url, filename, btn).then(resolve);
-                }
-            }, 30000);
-
+            // Wait for the dialog: a timeout could start a second download
+            // while the user is still choosing where to save.
             chrome.runtime.sendMessage({
                 type: 'DOWNLOAD_DIRECT',
                 url,
-                filename
+                filename,
+                saveAs
             }, (response) => {
-                if (responded) return;
-                responded = true;
-                clearTimeout(timeout);
-
-                if (chrome.runtime.lastError || !response?.success) {
-                    downloadViaBlobFallback(url, filename, btn).then(resolve);
+                const error = chrome.runtime.lastError?.message || response?.error;
+                // Download API failures can include Cancel in the Save As dialog.
+                // Do not retry them or depend on browser-specific error text.
+                if (response?.retryable === false) {
+                    setButtonState(btn, null, '⬇️ Download');
+                    btn.style.pointerEvents = 'auto';
+                    resolve(false);
+                    return;
+                }
+                if (error || !response?.success) {
+                    downloadViaBlobFallback(url, filename, btn, saveAs).then(resolve);
                     return;
                 }
 
                 setButtonState(btn, 'success', '✅ Downloaded');
                 resetButton(btn);
-                resolve();
+                resolve(true);
             });
         } catch {
             // sendMessage itself threw (Lemur/Android — "No matching signature")
-            downloadViaXHR(url, filename, btn).then(resolve);
+            downloadViaXHR(url, filename, btn, saveAs).then(resolve);
         }
     });
 }
 
 // Fallback 1: Fetch and download via background (preserves folder setting)
-async function downloadViaBlobFallback(url, filename, btn) {
+async function downloadViaBlobFallback(url, filename, btn, saveAs = false) {
     try {
-        setButtonState(btn, 'downloading', '⏳ Fetching video...');
-
+        setButtonState(btn, 'downloading', '⏳ Saving...');
         const response = await new Promise((resolve, reject) => {
             try {
                 chrome.runtime.sendMessage({
                     type: 'FETCH_AND_DOWNLOAD',
                     url,
-                    filename
-                }, resolve);
+                    filename,
+                    saveAs
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                    } else {
+                        resolve(response);
+                    }
+                });
             } catch {
                 reject(new Error('sendMessage not supported'));
             }
         });
 
+        if (response?.retryable === false) {
+            setButtonState(btn, null, '⬇️ Download');
+            btn.style.pointerEvents = 'auto';
+            return false;
+        }
         if (!response?.success) {
             throw new Error(response?.error || 'Download failed');
         }
@@ -503,15 +520,21 @@ async function downloadViaBlobFallback(url, filename, btn) {
         setButtonState(btn, 'success', '✅ Downloaded');
     } catch {
         // Background also failed — last resort: direct XHR from content script
-        await downloadViaXHR(url, filename, btn);
-        return;
+        return downloadViaXHR(url, filename, btn, saveAs);
     }
     resetButton(btn);
+    return true;
 }
 
 // Fallback 2: Pure content-script XHR download (no background needed)
 // Works because content script runs on redgifs.com (same-origin for media)
-async function downloadViaXHR(url, filename, btn) {
+async function downloadViaXHR(url, filename, btn, saveAs = false) {
+    // An anchor download cannot guarantee a Save As dialog.
+    if (saveAs) {
+        setButtonState(btn, 'error', '❌ Save As unavailable');
+        resetButton(btn);
+        return false;
+    }
     try {
         setButtonState(btn, 'downloading', '⏳ Fetching video...');
 
@@ -537,10 +560,13 @@ async function downloadViaXHR(url, filename, btn) {
         triggerBlobDownload(blob, filename);
 
         setButtonState(btn, 'success', '✅ Downloaded');
+        resetButton(btn);
+        return true;
     } catch {
         setButtonState(btn, 'error', '❌ Failed');
+        resetButton(btn);
+        return false;
     }
-    resetButton(btn);
 }
 
 // Helper: trigger a download from a Blob
@@ -642,7 +668,16 @@ function addDownloadButton(container) {
 
     const btn = document.createElement('button');
     btn.className = 'redgifs-download-btn';
+    btn.type = 'button';
     btn.textContent = '⬇️ Download';
+    btn.title = 'Download to your configured folder';
+
+    const asBtn = document.createElement('button');
+    asBtn.className = 'redgifs-download-btn redgifs-download-as-btn';
+    asBtn.type = 'button';
+    asBtn.textContent = 'as';
+    asBtn.title = 'Choose filename and save location';
+    asBtn.setAttribute('aria-label', 'Download video as');
 
     // Check download history
     const videoId = getVideoIdFromContainer(container);
@@ -650,13 +685,14 @@ function addDownloadButton(container) {
         setButtonState(btn, 'downloaded', '✅ Downloaded');
     }
 
-    btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        handleDownload(e);
+    [btn, asBtn].forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDownload(e);
+        });
+        wrapper.appendChild(button);
     });
-
-    wrapper.appendChild(btn);
     container.appendChild(wrapper);
 }
 
@@ -872,7 +908,7 @@ function initWatchPageNavigationWatcher() {
     const resetWatchButton = () => {
         // Only needed on /watch/ pages
         if (!window.location.pathname.includes('/watch/')) return;
-        document.querySelectorAll('.redgifs-download-btn').forEach(btn => {
+        document.querySelectorAll('.redgifs-download-btn:not(.redgifs-download-as-btn)').forEach(btn => {
             if (!btn.classList.contains('downloading')) {
                 setButtonState(btn, null, '⬇️ Download');
                 btn.style.pointerEvents = 'auto';

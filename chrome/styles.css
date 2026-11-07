@@ -5,11 +5,15 @@
 /* Download button wrapper - positioned inside the video container */
 .redgifs-download-btn-wrapper {
     position: absolute !important;
-    top: 0 !important;
-    right: 0 !important;
+    top: 10px !important;
+    right: 10px !important;
     z-index: 2147483647 !important;
     pointer-events: none !important;
-    display: block !important;
+    display: flex !important;
+    gap: 0 !important;
+    align-items: stretch !important;
+    border-radius: 6px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
     background-color: transparent !important;
     border: none !important;
     animation: redgifs-btn-appear 0.3s ease forwards !important;
@@ -23,15 +27,13 @@
 /* Download button */
 .redgifs-download-btn {
     all: initial !important;
-    position: absolute !important;
-    top: 10px !important;
-    right: 10px !important;
+    position: relative !important;
     z-index: 2147483647 !important;
-    padding: 6px 12px !important;
+    padding: 6px 3px 6px 8px !important;
     background: rgba(0, 0, 0, 0.75) !important;
     color: #fff !important;
     border: none !important;
-    border-radius: 6px !important;
+    border-radius: 6px 0 0 6px !important;
     cursor: pointer !important;
     font-size: 12px !important;
     font-weight: 500 !important;
@@ -40,22 +42,34 @@
     align-items: center !important;
     gap: 4px !important;
     pointer-events: auto !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
     backdrop-filter: blur(4px) !important;
     -webkit-backdrop-filter: blur(4px) !important;
-    transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease !important;
+    transition: background 0.2s ease !important;
     white-space: nowrap !important;
     line-height: 1 !important;
 }
 
+.redgifs-download-as-btn {
+    padding: 6px 8px 6px 3px !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.25) !important;
+    border-radius: 0 6px 6px 0 !important;
+}
+
 .redgifs-download-btn:hover {
     background: rgba(0, 0, 0, 0.9) !important;
-    transform: scale(1.05) !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
 }
 
 .redgifs-download-btn:active {
-    transform: scale(0.97) !important;
+    background: rgba(0, 0, 0, 1) !important;
+}
+
+.redgifs-download-btn:focus-visible {
+    outline: 2px solid #90caf9 !important;
+    outline-offset: -2px !important;
+}
+
+.redgifs-download-btn:disabled {
+    pointer-events: none !important;
 }
 
 /* Button state: downloading (shows progress) */

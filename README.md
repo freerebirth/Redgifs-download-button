@@ -43,9 +43,19 @@ No weird websites. No sketchy extensions. Just a **clean, fast, and easy** way t
 | 🛡️ **Smart download** | 3-tier fallback system ensures downloads work on any browser. |
 | 🔁 **Auto-retry** | Failed downloads automatically retry with exponential backoff. |
 | 📂 **Organized downloads** | All videos saved to a `Redgifs/` subfolder in Downloads. |
+| ⬇️ **Save as** | Click the smaller as button to choose the filename and save location. |
 | 📝 **Download history** | Remembers what you've downloaded — no more accidental duplicates. |
 
 ---
+
+## 🆕 Unreleased
+
+<details open>
+<summary>✨ <b>New Features</b></summary>
+
+- ⬇️ **Save as** — Each video has a split **Download as** button. Click **Download** to save directly to your configured download folder, or **as** to choose the filename and location. Configure the default download folder in the extension popup.
+
+</details>
 
 ## 🆕 What's New in v1.5
 

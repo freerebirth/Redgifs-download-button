@@ -17,10 +17,10 @@ const pendingSegments = new Map();
 browser.runtime.onMessage.addListener((message, sender) => {
     switch (message.type) {
         case 'DOWNLOAD_DIRECT':
-            return handleDirectDownload(message.url, message.filename);
+            return handleDirectDownload(message.url, message.filename, message.saveAs === true);
 
         case 'PROCESS_VIDEO':
-            handleVideoProcessing(message.videoId, message.manifest, sender.tab.id);
+            handleVideoProcessing(message.videoId, message.manifest, sender.tab.id, message.saveAs === true);
             break;
 
         case 'SEGMENT_DATA':
@@ -36,7 +36,7 @@ browser.runtime.onMessage.addListener((message, sender) => {
 // ============================================
 // Direct Download (primary method)
 // ============================================
-async function handleDirectDownload(url, filename) {
+async function handleDirectDownload(url, filename, saveAs = false) {
     const result = await browser.storage.local.get('downloadFolder');
     const folder = result.downloadFolder ?? DEFAULT_DOWNLOAD_FOLDER;
     const finalFilename = folder ? folder + filename : filename;
@@ -45,7 +45,7 @@ async function handleDirectDownload(url, filename) {
         const downloadId = await browser.downloads.download({
             url,
             filename: finalFilename,
-            saveAs: false
+            saveAs
         });
         return { success: true, downloadId };
     } catch (error) {
@@ -113,7 +113,7 @@ function parseM3u8(manifest) {
 // ============================================
 // Video Processing Pipeline
 // ============================================
-async function handleVideoProcessing(videoId, manifest, tabId) {
+async function handleVideoProcessing(videoId, manifest, tabId, saveAs = false) {
     try {
         const { segments, initSegment } = parseM3u8(manifest);
 
@@ -168,7 +168,7 @@ async function handleVideoProcessing(videoId, manifest, tabId) {
         await browser.downloads.download({
             url,
             filename: dlFilename,
-            saveAs: false
+            saveAs
         });
     } catch (error) {
         browser.tabs.sendMessage(tabId, {
