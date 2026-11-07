@@ -17,7 +17,7 @@ const pendingSegments = new Map();
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.type) {
         case 'DOWNLOAD_DIRECT':
-            handleDirectDownload(message.url, message.filename, sendResponse);
+            handleDirectDownload(message.url, message.filename, sendResponse, message.saveAs === true);
             return true; // Keep channel open for async response
 
         case 'FETCH_BLOB':
@@ -25,7 +25,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return true; // Keep channel open for async response
 
         case 'FETCH_AND_DOWNLOAD':
-            handleFetchAndDownload(message.url, message.filename, sendResponse);
+            handleFetchAndDownload(message.url, message.filename, sendResponse, message.saveAs === true);
             return true; // Keep channel open for async response
 
         case 'PROCESS_VIDEO':
@@ -47,7 +47,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ============================================
 // Direct Download (primary method)
 // ============================================
-function handleDirectDownload(url, filename, sendResponse) {
+function handleDirectDownload(url, filename, sendResponse, saveAs = false) {
     chrome.storage.local.get(['downloadFolder'], (result) => {
         const folder = result.downloadFolder ?? DEFAULT_DOWNLOAD_FOLDER;
         const finalFilename = folder ? folder + filename : filename;
@@ -56,10 +56,11 @@ function handleDirectDownload(url, filename, sendResponse) {
             url,
             filename: finalFilename,
             conflictAction: 'uniquify',
-            saveAs: false
+            saveAs
         }, (downloadId) => {
             if (chrome.runtime.lastError) {
-                sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                // Save As may have been canceled; only automatic downloads can retry.
+                sendResponse({ success: false, error: chrome.runtime.lastError.message, retryable: !saveAs });
             } else {
                 sendResponse({ success: true, downloadId });
             }
@@ -305,7 +306,7 @@ async function fetchVideoAsBase64(url, sendResponse) {
 }
 
 // Fetch video and download directly with folder prefix
-async function handleFetchAndDownload(url, filename, sendResponse) {
+async function handleFetchAndDownload(url, filename, sendResponse, saveAs = false) {
     try {
         const response = await fetch(url, {
             credentials: 'include',
@@ -328,11 +329,11 @@ async function handleFetchAndDownload(url, filename, sendResponse) {
                 url: blobUrl,
                 filename: finalFilename,
                 conflictAction: 'uniquify',
-                saveAs: false
+                saveAs
             }, (downloadId) => {
                 URL.revokeObjectURL(blobUrl);
                 if (chrome.runtime.lastError) {
-                    sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                    sendResponse({ success: false, error: chrome.runtime.lastError.message, retryable: !saveAs });
                 } else {
                     sendResponse({ success: true, downloadId });
                 }
